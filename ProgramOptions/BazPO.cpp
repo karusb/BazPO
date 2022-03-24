@@ -7,33 +7,34 @@ void BazPO::Add(std::string option, std::string secondOption,std::string descrip
     m_maxOptionParameterSize = option.size() > m_maxOptionParameterSize ? option.size() : m_maxOptionParameterSize;
     m_maxSecondOptionParameterSize = secondOption.size() > m_maxSecondOptionParameterSize ? secondOption.size() : m_maxSecondOptionParameterSize;
 
-    m_map.insert(std::make_pair(option, std::make_shared<Option>(option, "", secondOption, description, mandatory)));
+    m_map.insert(std::make_pair(option, Option(option, "", secondOption, description, mandatory)));
     // If secondOption is not default value then its registered as an alias to the map
     if (secondOption != "")
-    {
         m_aliasMap.insert(std::make_pair(secondOption, option));
-    }
 }
 
 BazPO::Option BazPO::GetOption(std::string option)
 {
-    if (!m_parsed)ParseArguments();
+    if (!m_parsed)
+        ParseArguments();
     auto key = GetKey(option);
-    return *m_map.at(key);
+    return m_map.at(key);
 }
 
 std::string BazPO::GetValue(std::string option)
 {  
-    if (!m_parsed)ParseArguments();
+    if (!m_parsed)
+        ParseArguments();
     auto key = GetKey(option);
-    return m_map.at(key)->Exists ? m_map.at(key)->Value : "";
+    return m_map.at(key).Exists ? m_map.at(key).Value : "";
 }
 
 bool BazPO::Exists(std::string option)
 {
-    if (!m_parsed)ParseArguments();
+    if (!m_parsed)
+        ParseArguments();
     auto key = GetKey(option);
-    return m_map.at(key)->Exists;
+    return m_map.at(key).Exists;
 }
 
 void BazPO::ParseArguments()
@@ -44,13 +45,9 @@ void BazPO::ParseArguments()
         auto key = GetKey(m_argv[i]);
         if (m_map.find(key) != m_map.end() )
         {
-            // It exists if argument matches the key
-            m_map.at(key)->Exists = true;
-            if ((i + 1) < m_argc)
-            {
-                // Value might exist if its within bounds and not in the options map otherwise it's empty
-                m_map.at(key)->Value = m_map.find(GetKey(m_argv[i + 1])) != m_map.end() ? "" : (m_argv[i + 1]);
-            }
+            m_map.at(key).Exists = true;
+            if ((i + 1) < m_argc) // Value might exist if its within bounds and not in the options map otherwise it's empty
+                m_map.at(key).Value = m_map.find(GetKey(m_argv[i + 1])) != m_map.end() ? "" : (m_argv[i + 1]);
         }
     }
     // At this moment we know if options are present or not
@@ -60,19 +57,18 @@ void BazPO::ParseArguments()
 
 void BazPO::AskUserInputForMandatoryOptions()
 {
-    for (const auto& pair : m_map)
+    for (auto& pair : m_map)
     {
-        if (pair.second->Mandatory && !pair.second->Exists)
+        if (pair.second.Mandatory && !pair.second.Exists)
         {         
             std::string temp;
-            std::cout << pair.second->Parameter << " is a required parameter" << std::endl;
-            std::cout << pair.second->Parameter << ": " << std::endl;
-            std::cin >> temp;
+            std::cout << pair.second.Parameter << " is a required parameter" << std::endl;
+            std::cout << pair.second.Parameter << ": " << std::endl;
+            std::cin >> temp;           
             
-            std::shared_ptr<std::string> input = std::make_shared<std::string>(temp);
-            m_optionStorage.push_back(input);
-            pair.second->Value = input->c_str();
-            pair.second->Exists = true;
+            m_optionStorage.push_back(temp);
+            pair.second.Value = m_optionStorage.back().c_str();
+            pair.second.Exists = true;
         }
     }
 }
@@ -104,13 +100,13 @@ void BazPO::PrintOptions()
     {
         // Calculate required padding for given option
         size_t firstPaddingSize = pair.first.size() < m_maxOptionParameterSize ? m_maxOptionParameterSize - pair.first.size() : 0;
-        size_t secondPaddingSize = pair.second->SecondParameter.size() < m_maxSecondOptionParameterSize ? m_maxSecondOptionParameterSize - pair.second->SecondParameter.size() : 0;
+        size_t secondPaddingSize = pair.second.SecondParameter.size() < m_maxSecondOptionParameterSize ? m_maxSecondOptionParameterSize - pair.second.SecondParameter.size() : 0;
         std::string firstPadding = CreateSpaces(firstPaddingSize);
         std::string secondPadding = CreateSpaces(secondPaddingSize);
         // Output the option
         std::cout <<
             pair.first << firstPadding << secondOptionSpaces <<
-            pair.second->SecondParameter << secondPadding << descriptionSpaces <<
-            pair.second->Description << std::endl;
+            pair.second.SecondParameter << secondPadding << descriptionSpaces <<
+            pair.second.Description << std::endl;
     }
 }

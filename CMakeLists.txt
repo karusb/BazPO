@@ -13,7 +13,7 @@ endif()
 include(GNUInstallDirs)
 add_library(BazPO STATIC
     ProgramOptions/BazPO.cpp
-    ProgramOptions/BazPO.h
+    ProgramOptions/BazPO.hpp
 )
 
 
