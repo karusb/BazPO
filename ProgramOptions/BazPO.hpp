@@ -7,7 +7,6 @@
 #include <memory>
 #include <queue>
 #include <functional>
-#include <optional>
 
 namespace BazPO
 {
@@ -18,8 +17,15 @@ namespace BazPO
 	public:
 
 		virtual void Add(std::string option, std::string secondOption = "", std::string description = "", bool mandatory = false, bool multipleOptions = false) = 0;
+		virtual void Add(size_t valueCount = 1, std::string description = "", bool mandatory = false) = 0;
 		virtual void Add(std::string option, std::function<void(const Option&)> action, std::string secondOption = "", std::string description = "", bool mandatory = false, bool multipleOptions = false) = 0;
 		virtual void Add(Option& option) = 0;
+
+		virtual void SetTaglessMode() { m_taglessMode = true; }
+		virtual bool IsTagless() { return m_taglessMode; }
+
+	private: 
+		bool m_taglessMode = false;
 	};
 
 	enum OptionParseType
@@ -127,6 +133,7 @@ namespace BazPO
 		void setValue(const char* value) { Value = value; Values.push_back(value); };
 
 		virtual void Execute(const Option&) const {};
+		virtual size_t GetValueCount() const { return ParseType == OptionParseType::Value ? 1 : SIZE_MAX; }
 
 		const char* Value = "";
 		std::deque<const char*> Values;
@@ -139,6 +146,7 @@ namespace BazPO
 		bool Exists = false;
 		bool Mandatory = false;
 
+	private:
 		friend class Cli;
 	};
 
@@ -152,6 +160,8 @@ namespace BazPO
 			if (po != nullptr)
 				po->Add(*this);
 		};
+	private:
+		friend class Cli;
 	};
 
 	class MultiOption
@@ -164,6 +174,8 @@ namespace BazPO
 			if (po != nullptr)
 				po->Add(*this);
 		};
+	private:
+		friend class Cli;
 	};
 	namespace _detail
 	{
@@ -173,13 +185,24 @@ namespace BazPO
 		: public Option
 	{
 	public:
-		TaglessOption(std::string description = "", bool mandatory = false, ICli* po = nullptr)
+		TaglessOption(size_t valueCount = 1, std::string description = "", bool mandatory = false, ICli* po = nullptr)
 			: Option(std::to_string(_detail::TaglessOptionIDCounter), "", description, mandatory, OptionParseType::Unidentified)
+			, valueCount(valueCount)
 		{
 			++_detail::TaglessOptionIDCounter;
 			if (po != nullptr)
+			{
 				po->Add(*this);
+				po->SetTaglessMode();
+			}
+
 		};
+	protected:
+		virtual size_t GetValueCount() const override { return valueCount; }
+
+	private:
+		size_t valueCount;
+		friend class Cli;
 	};
 
 	class FunctionOption
@@ -197,6 +220,7 @@ namespace BazPO
 
 	private:
 		std::function<void(const Option&)> f;
+		friend class Cli;
 	};
 
 	class Cli
@@ -209,14 +233,21 @@ namespace BazPO
 			, m_programDescription(programDescription)
 		{
 #ifndef BazPO_DISABLE_AUTO_HELP_MESSAGE
-			Add("-h", "--help", "Prints this help message");
+			Add("-h", [this](const Option&)
+				{
+					PrintOptions();
+					exit(0);
+				}
+			, "--help", "Prints this help message");
 #endif
 		};
+		~Cli() { BazPO::_detail::TaglessOptionIDCounter = 0; };
 		// Implementation of ICli
 		virtual void Add(std::string option, std::string secondOption = "", std::string description = "", bool mandatory = false, bool multipleOptions = false) override;
 		virtual void Add(std::string option, std::function<void(const Option&)> action, std::string secondOption = "", std::string description = "", bool mandatory = false, bool multipleOptions = false) override;
-
+		virtual void Add(size_t valueCount = 1, std::string description = "", bool mandatory = false) override;
 		void Add(Option& option) override;
+		//
 
 		const Option& GetOption(std::string option);
 		template <typename T>

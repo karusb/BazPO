@@ -285,6 +285,93 @@ TEST_F(ProgramOptionsTest, function_option_with_reference_succesful) {
     EXPECT_EQ(std::string("value2"), option.values<>()[1]);
     EXPECT_EQ(std::string("value4"), option.values<>()[2]);
 }
+
+TEST_F(ProgramOptionsTest, tagless_options_successful_with_multiple_values)
+{
+    int argc = 5;
+    const char* argv[5]{ {"programoptions"}, {"value1"}, {"value2"}, {"value3"}, {"value4"} };
+    Cli po{ argc, argv };
+    po.Add(4);
+
+    po.ParseArguments();
+
+    auto a = po.GetOption("0");
+
+    EXPECT_EQ(true, a.Exists);
+
+    EXPECT_EQ(4, a.values<>().size());
+    EXPECT_EQ(std::string("value1"), a.values<>()[0]);
+    EXPECT_EQ(std::string("value2"), a.values<>()[1]);
+    EXPECT_EQ(std::string("value3"), a.values<>()[2]);
+    EXPECT_EQ(std::string("value4"), a.values<>()[3]);
+}
+TEST_F(ProgramOptionsTest, tagless_options_successful_with_one_value)
+{
+    int argc = 5;
+    const char* argv[5]{ {"programoptions"}, {"value1"}, {"value2"}, {"value3"}, {"value4"} };
+    Cli po{ argc, argv };
+    po.Add();
+    po.Add();
+    po.Add();
+    po.Add();
+
+    po.ParseArguments();
+
+    auto a = po.GetOption("0");
+    auto b = po.GetOption("1");
+    auto c = po.GetOption("2");
+    auto d = po.GetOption("3");
+
+    EXPECT_EQ(true, a.Exists);
+    EXPECT_EQ(true, b.Exists);
+    EXPECT_EQ(true, c.Exists);
+    EXPECT_EQ(true, d.Exists);
+
+    EXPECT_EQ(std::string("value1"), a.value<>());
+    EXPECT_EQ(std::string("value2"), b.value<>());
+    EXPECT_EQ(std::string("value3"), c.value<>());
+    EXPECT_EQ(std::string("value4"), d.value<>());
+}
+
+TEST_F(ProgramOptionsTest, tagless_option_with_reference_succesful_1) {
+    int argc = 5;
+    const char* argv[5]{ {"programoptions"}, {"value1"}, {"value2"}, {"value3"}, {"value4"} };
+    Cli po(argc, argv);
+    TaglessOption a(1, "Option A", false, &po);
+    TaglessOption b(1, "Option B", false, &po);
+    TaglessOption c(1, "Option C", false, &po);
+    TaglessOption d(1, "Option D", false, &po);
+
+    po.ParseArguments();
+
+    EXPECT_EQ(true, a.Exists);
+    EXPECT_EQ(true, b.Exists);
+    EXPECT_EQ(true, c.Exists);
+    EXPECT_EQ(true, d.Exists);
+
+    EXPECT_EQ(std::string("value1"), a.value<>());
+    EXPECT_EQ(std::string("value2"), b.value<>());
+    EXPECT_EQ(std::string("value3"), c.value<>());
+    EXPECT_EQ(std::string("value4"), d.value<>());
+}
+
+TEST_F(ProgramOptionsTest, tagless_option_with_reference_succesful_2) {
+    int argc = 5;
+    const char* argv[5]{ {"programoptions"}, {"value1"}, {"value2"}, {"value3"}, {"value4"} };
+    Cli po(argc, argv);
+    TaglessOption a(4, "Option A", false, &po);
+
+    po.ParseArguments();
+
+    EXPECT_EQ(true, a.Exists);
+
+    EXPECT_EQ(4, a.values<>().size());
+    EXPECT_EQ(std::string("value1"), a.values<>()[0]);
+    EXPECT_EQ(std::string("value2"), a.values<>()[1]);
+    EXPECT_EQ(std::string("value3"), a.values<>()[2]);
+    EXPECT_EQ(std::string("value4"), a.values<>()[3]);
+}
+
 TEST_F(ProgramOptionsTest, options_print) {
     int argc = 1;
     const char* argv[] = { "programoptions"};

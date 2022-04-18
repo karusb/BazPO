@@ -29,12 +29,21 @@ namespace BazPO
     void Cli::Add(std::string option, std::function<void(const Option&)> action, std::string secondOption, std::string description, bool mandatory, bool multipleOptions)
     {
         RegisterLargestInput(option.size(), secondOption.size());
-        Option* optionRef = nullptr;
         m_functionalValues.push_back(FunctionOption(option, action, secondOption, description, mandatory));
-        optionRef = &m_functionalValues.back();
 
-        m_refMap.insert({ option, *optionRef });
+        m_refMap.insert({ option, *&m_functionalValues.back() });
         RegisterAlias(option, secondOption);
+    }
+
+    void Cli::Add(size_t valueCount, std::string description, bool mandatory)
+    {
+        RegisterLargestInput(_detail::TaglessOptionIDCounter %10 + 1, 0);
+        m_taglessOptions.push_back(TaglessOption(valueCount, description, mandatory));
+
+        auto id = std::to_string(_detail::TaglessOptionIDCounter - 1);
+        m_refMap.insert({ id , *&m_taglessOptions.back()});
+
+        SetTaglessMode();
     }
 
     void Cli::Add(Option& option)
@@ -62,25 +71,38 @@ namespace BazPO
 
     void Cli::ParseArguments()
     {
-        ParseNormal();
-        // At this moment we know if options are present or not
-        AskUserInputForMandatoryOptions();
-        m_parsed = true;
-        // Execute Actions
-        for (auto it = m_refMap.begin(); it != m_refMap.end(); ++it)
-            it->second.Execute(it->second);
+        if (!m_parsed)
+        {
+            if (IsTagless())
+                ParseTagless();
+            else
+                ParseNormal();
+            // At this moment we know if options are present or not
+            AskUserInputForMandatoryOptions();
+            m_parsed = true;
+            // Execute Actions
+            for (auto it = m_refMap.begin(); it != m_refMap.end(); ++it)
+                if (it->second.Exists)
+                    it->second.Execute(it->second);
+        }
     }
 
     void Cli::ParseTagless()
     {
-        if (m_taglessOptions.size() > 0)
+        int cursor = 1;
+        if (m_argc == 2 && m_argv[1] == "help" || m_argv[1] == "-h" || m_argv[1] == "--help" || m_argv[1] == "h")
         {
-            for (int i = 1; i < m_argc; ++i)
-            {
-                auto key = GetKey(std::to_string(i - 1)); // this line assumes all tagless options have one value
-                auto option = m_refMap.find(key);
-                option->second.setValue(m_argv[i]);
-            }
+            PrintOptions();
+            exit(0);
+        }
+        for (auto it = m_refMap.begin(); it != m_refMap.end(); ++it)
+        {
+            if(it->second.ParseType == OptionParseType::Unidentified)
+                for (int i = 0; cursor < m_argc && i < it->second.GetValueCount(); ++cursor, ++i)
+                {
+                    it->second.Exists = true;
+                    it->second.setValue(m_argv[cursor]);
+                }
         }
     }
 
@@ -109,7 +131,6 @@ namespace BazPO
                         PrintMultiArgumentParsingError(lastOption->Parameter, m_argv[i + 1]);
                 }
             }
-
         }
     }
 
