@@ -3,12 +3,13 @@
 
 #include <iostream>
 #include "../ProgramOptions/BazPO.hpp"
-int main(int argc,char* argv[])
+int main(int argc,const char* argv[])
 {
-    BazPO po(argc, argv);
-    po.Add("-a", "--alpha", "Option A",true);
+    BazPO::Cli po(argc, argv);
+    po.Add("-a", "--alpha", "Option A", true);
     po.Add("-b", "--bravo", "Option B");
     po.PrintOptions();
+    po.UserInputRequiredForAbsentMandatoryOptions();
     po.ParseArguments();
     auto aoption = po.GetOption("-a");
     auto boption = po.GetOption("-b");
@@ -16,5 +17,7 @@ int main(int argc,char* argv[])
     std::cout << "EXISTS:" << aoption.Exists << std::endl;
     std::cout << "INT:" << po.GetValueAs<int>("-a") << std::endl;
     std::cout << "BOOL:" << po.GetValueAs<bool>("-a") << std::endl;
-    std::cout << aoption.Value;
+    std::cout << aoption.value<>();
+
+    while (1);
 }
