@@ -52,33 +52,17 @@ namespace BazPO
 		Option() = delete;
 		virtual ~Option() {};
 
-		template <typename T = const char*>
-		T value() const;
-		template<>
-		inline const char* value() const { return Value; }
-		template<>
-		inline std::string value() const { return std::string(Value); }
-		template<>
-		inline int value() const { return std::atoi(Value); }
-		template<>
-		inline long value() const { return std::atol(Value); }
-		template<>
-		inline long long value() const { return std::atoll(Value); }
-		template<>
-		inline float value() const { return std::stof(std::string(Value)); }
-		template<>
-		inline double value() const { return std::stod(std::string(Value)); }
-		template<>
-		bool value() const { return Value == "1" || Value == "True" || Value == "true" || Value == "t" || Value == "y"; }
+		const char* value() const { return Value; }
+		std::string str_value() const { return std::string(Value); }
+		int int_value() const { return std::atoi(Value); }
+		long long_value() const { return std::atol(Value); }
+		long long long_long_value() const { return std::atoll(Value); }
+		float float_value() const { return std::stof(std::string(Value)); }
+		double double_value() const { return std::stod(std::string(Value)); }
+		bool bool_value() const { return Value == "1" || Value == "True" || Value == "true" || Value == "t" || Value == "y"; }
 
-		template <typename T = const char*>
-		std::deque<T> values() const;
-
-		template <>
 		std::deque<const char*> values() const { return Values; }
-
-		template <>
-		std::deque<std::string> values() const
+		std::deque<std::string> str_values() const
 		{
 			std::deque<std::string> ret;
 			for (auto it = Values.begin(); it != Values.end(); ++it)
@@ -86,24 +70,21 @@ namespace BazPO
 			return ret;
 		};
 
-		template <>
-		std::deque<int> values() const
+		std::deque<int> int_values() const
 		{
 			std::deque<int> ret;
 			for (auto it = Values.begin(); it != Values.end(); ++it)
 				ret.push_back(std::atoi(*it));
 			return ret;
 		};
-		template <>
-		std::deque<long> values() const
+		std::deque<long> long_values() const
 		{
 			std::deque<long> ret;
 			for (auto it = Values.begin(); it != Values.end(); ++it)
 				ret.push_back(std::atol(*it));
 			return ret;
 		};
-		template <>
-		std::deque<long long> values() const
+		std::deque<long long> long_long_values() const
 		{
 			std::deque<long long> ret;
 			for (auto it = Values.begin(); it != Values.end(); ++it)
@@ -111,8 +92,7 @@ namespace BazPO
 			return ret;
 		};
 
-		template <>
-		std::deque<float> values() const
+		std::deque<float> float_values() const
 		{
 			std::deque<float> ret;
 			for (auto it = Values.begin(); it != Values.end(); ++it)
@@ -120,8 +100,7 @@ namespace BazPO
 			return ret;
 		};
 
-		template <>
-		std::deque<double> values() const
+		std::deque<double> double_values() const
 		{
 			std::deque<double> ret;
 			for (auto it = Values.begin(); it != Values.end(); ++it)
@@ -129,7 +108,7 @@ namespace BazPO
 			return ret;
 		};
 
-	protected: 
+	public: 
 		void setValue(const char* value) { Value = value; Values.push_back(value); };
 
 		virtual void Execute(const Option&) const {};
@@ -146,8 +125,6 @@ namespace BazPO
 		bool Exists = false;
 		bool Mandatory = false;
 
-	private:
-		friend class Cli;
 	};
 
 	class ValueOption
@@ -250,14 +227,14 @@ namespace BazPO
 		//
 
 		const Option& GetOption(std::string option);
-		template <typename T>
-		T GetValueAs(std::string option)
-		{
-			if (!m_parsed)
-				ParseArguments();
-			auto key = GetKey(option);
-			return m_refMap.at(key).value<T>();
-		}
+		//template <typename T>
+		//T GetValueAs(std::string option)
+		//{
+		//	if (!m_parsed)
+		//		ParseArguments();
+		//	auto key = GetKey(option);
+		//	return m_refMap.at(key).value<T>();
+		//}
 		bool Exists(std::string option);
 		void PrintOptions();
 		void ParseArguments();
@@ -294,6 +271,8 @@ namespace BazPO
 
 		std::istream* m_inputStream = &std::cin;
 		std::ostream* m_outputStream = &std::cout;
+
+		friend class Option;
 	};
 }
 #endif

@@ -22,7 +22,7 @@ TEST_F(ProgramOptionsTest, add_then_get_successful)
 
     EXPECT_EQ(true, a.Exists);
     EXPECT_EQ(false, a.Mandatory);
-    EXPECT_EQ(std::string("Aoption"), a.value<>());
+    EXPECT_EQ(std::string("Aoption"), a.value());
 }
 
 TEST_F(ProgramOptionsTest, get_second_option_successful)
@@ -35,7 +35,7 @@ TEST_F(ProgramOptionsTest, get_second_option_successful)
 
     EXPECT_EQ(true, a.Exists);
     EXPECT_EQ(false, a.Mandatory);
-    EXPECT_EQ(std::string("Aoption"), a.value<>());
+    EXPECT_EQ(std::string("Aoption"), a.value());
 }
 TEST_F(ProgramOptionsTest, int_conversion_succesful)
 {
@@ -46,7 +46,7 @@ TEST_F(ProgramOptionsTest, int_conversion_succesful)
     auto a = po.GetOption("-d");
 
     EXPECT_EQ(true, a.Exists);
-    EXPECT_EQ(15, a.value<int>());
+    EXPECT_EQ(15, a.int_value());
 }
 
 TEST_F(ProgramOptionsTest, double_conversion_succesful)
@@ -58,7 +58,7 @@ TEST_F(ProgramOptionsTest, double_conversion_succesful)
     auto a = po.GetOption("-e");
 
     EXPECT_EQ(true, a.Exists);
-    EXPECT_EQ(15.2156, a.value<double>());
+    EXPECT_EQ(15.2156, a.double_value());
 }
 
 TEST_F(ProgramOptionsTest, bool_conversion_succesful)
@@ -76,13 +76,13 @@ TEST_F(ProgramOptionsTest, bool_conversion_succesful)
     auto c = po.GetOption("-c");
 
     EXPECT_EQ(true, a.Exists);
-    EXPECT_EQ(false, a.value<bool>());
+    EXPECT_EQ(true, a.bool_value());
 
     EXPECT_EQ(true, b.Exists);
-    EXPECT_EQ(false, b.value<bool>());
+    EXPECT_EQ(false, b.bool_value());
 
     EXPECT_EQ(true, c.Exists);
-    EXPECT_EQ(false, c.value<bool>());
+    EXPECT_EQ(false, c.bool_value());
 }
 
 TEST_F(ProgramOptionsTest, all_options_are_found)
@@ -101,15 +101,15 @@ TEST_F(ProgramOptionsTest, all_options_are_found)
 
     EXPECT_EQ(true, a.Exists);
     EXPECT_EQ(false, a.Mandatory);
-    EXPECT_EQ(std::string("Aoption"), a.value<>());
+    EXPECT_EQ(std::string("Aoption"), a.value());
 
     EXPECT_EQ(true, b.Exists);
     EXPECT_EQ(false, b.Mandatory);
-    EXPECT_EQ(std::string("Boption"), b.value<>());
+    EXPECT_EQ(std::string("Boption"), b.value());
 
     EXPECT_EQ(true, c.Exists);
     EXPECT_EQ(false, c.Mandatory);
-    EXPECT_EQ(std::string(""), c.value<>());
+    EXPECT_EQ(std::string(""), c.value());
 }
 TEST_F(ProgramOptionsTest, multi_options_successful)
 {
@@ -129,11 +129,11 @@ TEST_F(ProgramOptionsTest, multi_options_successful)
     EXPECT_EQ(false, b.Exists);
     EXPECT_EQ(false, c.Exists);
 
-    EXPECT_EQ(4, a.values<>().size());
-    EXPECT_EQ(std::string("value1"), a.values<>()[0]);
-    EXPECT_EQ(std::string("value2"), a.values<>()[1]);
-    EXPECT_EQ(std::string("value3"), a.values<>()[2]);
-    EXPECT_EQ(std::string("value4"), a.values<>()[3]);
+    EXPECT_EQ(4, a.values().size());
+    EXPECT_EQ(std::string("value1"), a.values()[0]);
+    EXPECT_EQ(std::string("value2"), a.values()[1]);
+    EXPECT_EQ(std::string("value3"), a.values()[2]);
+    EXPECT_EQ(std::string("value4"), a.values()[3]);
 }
 
 TEST_F(ProgramOptionsTest, multi_options_with_multi_tags_successful)
@@ -154,10 +154,10 @@ TEST_F(ProgramOptionsTest, multi_options_with_multi_tags_successful)
     EXPECT_EQ(false, b.Exists);
     EXPECT_EQ(false, c.Exists);
 
-    EXPECT_EQ(3, a.values<>().size());
-    EXPECT_EQ(std::string("value1"), a.values<>()[0]);
-    EXPECT_EQ(std::string("value2"), a.values<>()[1]);
-    EXPECT_EQ(std::string("value4"), a.values<>()[2]);
+    EXPECT_EQ(3, a.values().size());
+    EXPECT_EQ(std::string("value1"), a.values()[0]);
+    EXPECT_EQ(std::string("value2"), a.values()[1]);
+    EXPECT_EQ(std::string("value4"), a.values()[2]);
 }
 
 TEST_F(ProgramOptionsTest, value_option_with_multi_tags_successful)
@@ -178,9 +178,9 @@ TEST_F(ProgramOptionsTest, value_option_with_multi_tags_successful)
     EXPECT_EQ(false, b.Exists);
     EXPECT_EQ(false, c.Exists);
 
-    EXPECT_EQ(2, a.values<>().size());
-    EXPECT_EQ(std::string("value1"), a.values<>()[0]);
-    EXPECT_EQ(std::string("value4"), a.values<>()[1]);
+    EXPECT_EQ(2, a.values().size());
+    EXPECT_EQ(std::string("value1"), a.values()[0]);
+    EXPECT_EQ(std::string("value4"), a.values()[1]);
 }
 
 TEST_F(ProgramOptionsTest, mandatory_option_exits_when_not_provided) {
@@ -205,7 +205,7 @@ TEST_F(ProgramOptionsTest, mandatory_option_asked_when_not_provided) {
 
     auto a = po.GetOption("-a");
     EXPECT_EQ(true, a.Exists);
-    EXPECT_EQ(std::string("input"), a.value<>());
+    EXPECT_EQ(std::string("input"), a.value());
 }
 
 TEST_F(ProgramOptionsTest, function_option_executes_successfully) {
@@ -225,10 +225,10 @@ TEST_F(ProgramOptionsTest, function_option_contents_correct) {
     const char* argv[6]{ {"programoptions"}, {"-a"}, {"value1"}, {"value2"}, {"-a"}, {"value4"} };
     Cli po(argc, argv);
     po.Add("-a", [&](const Option& option) {
-        EXPECT_EQ(3, option.values<>().size());
-        EXPECT_EQ(std::string("value1"), option.values<>()[0]);
-        EXPECT_EQ(std::string("value2"), option.values<>()[1]);
-        EXPECT_EQ(std::string("value4"), option.values<>()[2]);
+        EXPECT_EQ(3, option.values().size());
+        EXPECT_EQ(std::string("value1"), option.values()[0]);
+        EXPECT_EQ(std::string("value2"), option.values()[1]);
+        EXPECT_EQ(std::string("value4"), option.values()[2]);
         executed = true;
         }, "--alpha", "Option A", true);
 
@@ -244,7 +244,7 @@ TEST_F(ProgramOptionsTest, value_option_with_reference_succesful) {
 
     EXPECT_EQ(true, option.Exists);
     EXPECT_EQ(false, option.Mandatory);
-    EXPECT_EQ(std::string("Aoption"), option.value<>());
+    EXPECT_EQ(std::string("Aoption"), option.value());
 }
 
 TEST_F(ProgramOptionsTest, multi_option_with_reference_succesful) {
@@ -257,10 +257,10 @@ TEST_F(ProgramOptionsTest, multi_option_with_reference_succesful) {
 
     EXPECT_EQ(true, option.Exists);
     EXPECT_EQ(false, option.Mandatory);
-    EXPECT_EQ(3, option.values<>().size());
-    EXPECT_EQ(std::string("value1"), option.values<>()[0]);
-    EXPECT_EQ(std::string("value2"), option.values<>()[1]);
-    EXPECT_EQ(std::string("value4"), option.values<>()[2]);
+    EXPECT_EQ(3, option.values().size());
+    EXPECT_EQ(std::string("value1"), option.values()[0]);
+    EXPECT_EQ(std::string("value2"), option.values()[1]);
+    EXPECT_EQ(std::string("value4"), option.values()[2]);
 }
 
 TEST_F(ProgramOptionsTest, function_option_with_reference_succesful) {
@@ -269,10 +269,10 @@ TEST_F(ProgramOptionsTest, function_option_with_reference_succesful) {
     const char* argv[6]{ {"programoptions"}, {"-a"}, {"value1"}, {"value2"}, {"-a"}, {"value4"} };
     Cli po(argc, argv);
     FunctionOption option("-a", [&](const Option& option) {
-        EXPECT_EQ(3, option.values<>().size());
-        EXPECT_EQ(std::string("value1"), option.values<>()[0]);
-        EXPECT_EQ(std::string("value2"), option.values<>()[1]);
-        EXPECT_EQ(std::string("value4"), option.values<>()[2]);
+        EXPECT_EQ(3, option.values().size());
+        EXPECT_EQ(std::string("value1"), option.values()[0]);
+        EXPECT_EQ(std::string("value2"), option.values()[1]);
+        EXPECT_EQ(std::string("value4"), option.values()[2]);
         executed = true;
         }, "--alpha", "Option A", false, &po);
 
@@ -280,10 +280,10 @@ TEST_F(ProgramOptionsTest, function_option_with_reference_succesful) {
     EXPECT_EQ(true, executed);
     EXPECT_EQ(true, option.Exists);
     EXPECT_EQ(false, option.Mandatory);
-    EXPECT_EQ(3, option.values<>().size());
-    EXPECT_EQ(std::string("value1"), option.values<>()[0]);
-    EXPECT_EQ(std::string("value2"), option.values<>()[1]);
-    EXPECT_EQ(std::string("value4"), option.values<>()[2]);
+    EXPECT_EQ(3, option.values().size());
+    EXPECT_EQ(std::string("value1"), option.values()[0]);
+    EXPECT_EQ(std::string("value2"), option.values()[1]);
+    EXPECT_EQ(std::string("value4"), option.values()[2]);
 }
 
 TEST_F(ProgramOptionsTest, tagless_options_successful_with_multiple_values)
@@ -299,11 +299,11 @@ TEST_F(ProgramOptionsTest, tagless_options_successful_with_multiple_values)
 
     EXPECT_EQ(true, a.Exists);
 
-    EXPECT_EQ(4, a.values<>().size());
-    EXPECT_EQ(std::string("value1"), a.values<>()[0]);
-    EXPECT_EQ(std::string("value2"), a.values<>()[1]);
-    EXPECT_EQ(std::string("value3"), a.values<>()[2]);
-    EXPECT_EQ(std::string("value4"), a.values<>()[3]);
+    EXPECT_EQ(4, a.values().size());
+    EXPECT_EQ(std::string("value1"), a.values()[0]);
+    EXPECT_EQ(std::string("value2"), a.values()[1]);
+    EXPECT_EQ(std::string("value3"), a.values()[2]);
+    EXPECT_EQ(std::string("value4"), a.values()[3]);
 }
 TEST_F(ProgramOptionsTest, tagless_options_successful_with_one_value)
 {
@@ -327,10 +327,10 @@ TEST_F(ProgramOptionsTest, tagless_options_successful_with_one_value)
     EXPECT_EQ(true, c.Exists);
     EXPECT_EQ(true, d.Exists);
 
-    EXPECT_EQ(std::string("value1"), a.value<>());
-    EXPECT_EQ(std::string("value2"), b.value<>());
-    EXPECT_EQ(std::string("value3"), c.value<>());
-    EXPECT_EQ(std::string("value4"), d.value<>());
+    EXPECT_EQ(std::string("value1"), a.value());
+    EXPECT_EQ(std::string("value2"), b.value());
+    EXPECT_EQ(std::string("value3"), c.value());
+    EXPECT_EQ(std::string("value4"), d.value());
 }
 
 TEST_F(ProgramOptionsTest, tagless_option_with_reference_succesful_1) {
@@ -349,10 +349,10 @@ TEST_F(ProgramOptionsTest, tagless_option_with_reference_succesful_1) {
     EXPECT_EQ(true, c.Exists);
     EXPECT_EQ(true, d.Exists);
 
-    EXPECT_EQ(std::string("value1"), a.value<>());
-    EXPECT_EQ(std::string("value2"), b.value<>());
-    EXPECT_EQ(std::string("value3"), c.value<>());
-    EXPECT_EQ(std::string("value4"), d.value<>());
+    EXPECT_EQ(std::string("value1"), a.value());
+    EXPECT_EQ(std::string("value2"), b.value());
+    EXPECT_EQ(std::string("value3"), c.value());
+    EXPECT_EQ(std::string("value4"), d.value());
 }
 
 TEST_F(ProgramOptionsTest, tagless_option_with_reference_succesful_2) {
@@ -365,11 +365,11 @@ TEST_F(ProgramOptionsTest, tagless_option_with_reference_succesful_2) {
 
     EXPECT_EQ(true, a.Exists);
 
-    EXPECT_EQ(4, a.values<>().size());
-    EXPECT_EQ(std::string("value1"), a.values<>()[0]);
-    EXPECT_EQ(std::string("value2"), a.values<>()[1]);
-    EXPECT_EQ(std::string("value3"), a.values<>()[2]);
-    EXPECT_EQ(std::string("value4"), a.values<>()[3]);
+    EXPECT_EQ(4, a.values().size());
+    EXPECT_EQ(std::string("value1"), a.values()[0]);
+    EXPECT_EQ(std::string("value2"), a.values()[1]);
+    EXPECT_EQ(std::string("value3"), a.values()[2]);
+    EXPECT_EQ(std::string("value4"), a.values()[3]);
 }
 
 TEST_F(ProgramOptionsTest, options_print) {

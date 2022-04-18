@@ -13,11 +13,10 @@ int main(int argc,const char* argv[])
     po.ParseArguments();
     auto aoption = po.GetOption("-a");
     auto boption = po.GetOption("-b");
-
     std::cout << "EXISTS:" << aoption.Exists << std::endl;
-    std::cout << "INT:" << po.GetValueAs<int>("-a") << std::endl;
-    std::cout << "BOOL:" << po.GetValueAs<bool>("-a") << std::endl;
-    std::cout << aoption.value<>();
+    std::cout << "INT:" << aoption.int_value() << std::endl;
+    std::cout << "BOOL:" << aoption.bool_value() << std::endl;
+    std::cout << aoption.value();
 
     while (1);
 }
