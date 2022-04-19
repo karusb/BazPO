@@ -13,7 +13,7 @@ int main(int argc,const char* argv[])
     po.UserInputRequiredForAbsentMandatoryOptions();
     po.ParseArguments();
     auto aoption = po.GetOption("-a");
-    auto boption = po.GetOption("-b");
+
     std::cout << "EXISTS:" << aoption.exists() << std::endl;
     std::cout << "INT:" << aoption.value_as<int>() << std::endl;
     std::cout << "BOOL:" << aoption.value_bool() << std::endl;
