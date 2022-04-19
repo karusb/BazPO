@@ -2,7 +2,7 @@
 # project specific logic here.
 #
 cmake_minimum_required (VERSION 3.10)
-project(BazPO VERSION 1.0.0 DESCRIPTION "BazWare Program Options Library")
+project(BazPO VERSION 1.0.0 DESCRIPTION "BazWare Program Options Argument Parser")
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 # Specify BuildType if its not specified
@@ -36,9 +36,6 @@ set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 add_executable(BazPOManual ProgramOptionsManual/ProgramOptionsManual.cpp)
 
-target_link_libraries(BazPOManual PUBLIC BazPO)
-
-
 target_include_directories(BazPOManual PUBLIC
                           "${PROJECT_BINARY_DIR}"
                           "${PROJECT_SOURCE_DIR}/ProgramOptions"
@@ -65,10 +62,8 @@ add_executable(
 )
 target_link_libraries(
   ProgramOptionsTest
-  BazPO
   gtest_main
 )
 
 include(GoogleTest)
 gtest_discover_tests(ProgramOptionsTest)
-# TODO: Add tests.

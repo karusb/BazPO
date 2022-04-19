@@ -5,18 +5,18 @@
 #include "../ProgramOptions/BazPO.hpp"
 int main(int argc,const char* argv[])
 {
-    BazPO::Cli po(argc, argv);
-    po.Add("-a", "--alpha", "Option A", true);
-    po.Add("-b", "--bravo", "Option B");
+    BazPO::Cli po(argc, argv, "asdg asghhm asg hgasoasht asfgally");
+    po.Add("-a", "--ammonium", "fdgj sds ajsdjsnium jsdnt jsd jsgle berry", true);
+    po.Add("-berk", "--berkytonics", "Simple jumble james");
+    po.Add("-gb", "--ginB", "fdgj sds ajsdjsnium jsdnt jsd jsgle berryfdgj sds ajsdjsnium jsdnt jsd jsgle berryfdgj sds ajsdjsnium jsdnt jsd jsgle berryfdgj sds ajsdjsnium js");
     po.PrintOptions();
     po.UserInputRequiredForAbsentMandatoryOptions();
     po.ParseArguments();
     auto aoption = po.GetOption("-a");
     auto boption = po.GetOption("-b");
-    std::cout << "EXISTS:" << aoption.Exists << std::endl;
-    std::cout << "INT:" << aoption.int_value() << std::endl;
-    std::cout << "BOOL:" << aoption.bool_value() << std::endl;
+    std::cout << "EXISTS:" << aoption.exists() << std::endl;
+    std::cout << "INT:" << aoption.value_as<int>() << std::endl;
+    std::cout << "BOOL:" << aoption.value_bool() << std::endl;
     std::cout << aoption.value();
-
     while (1);
 }
