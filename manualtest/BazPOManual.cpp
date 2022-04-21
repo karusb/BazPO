@@ -3,21 +3,23 @@
 
 #include <iostream>
 #include "../include/BazPO.hpp"
-int main(int argc,const char* argv[])
+using namespace BazPO;
+
+
+int main(int argc, const char* argv[])
 {
-    BazPO::Cli po(argc, argv, "asdg asghhm asg hgasoasht asfgally");
-    po.Add("-a", "--ammonium", "fdgj sds ajsdjsnium jsdnt jsd jsgle berry", true);
-    po.Add("-berk", "--berkytonics", "Simple jumble james");
-    po.Add("-gb", "--ginB", "fdgj sds ajsdjsnium jsdnt jsd jsgle berryfdgj sds ajsdjsnium jsdnt jsd jsgle berryfdgj sds ajsdjsnium jsdnt jsd jsgle berryfdgj sds ajsdjsnium js");
-    po.PrintOptions();
-    po.UserInputRequiredForAbsentMandatoryOptions();
-    po.ParseArguments();
-    auto aoption = po.GetOption("-a");
+    Cli po(argc, argv);
 
-    std::cout << "EXISTS:" << aoption.exists() << std::endl;
-    std::cout << "VALUE:" << aoption.value() << std::endl;
-    std::cout << "INT:" << aoption.value_as<int>() << std::endl;
-    std::cout << "BOOL:" << aoption.value_bool() << std::endl;
+    ValueOption optionA(&po, "-a", "--alpha", "Option A", true);
+    FunctionOption optionB(&po, "-b", [&](const Option& option) {
+        /* do something */
+        }, "--bravo", "Option B");
 
-    while (1);
+    po.userInputRequired();
+
+    po.parse();
+
+    std::cout << "EXISTS:" << optionA.exists() << std::endl;
+    std::cout << "INT:" << optionA.valueAs<int>() << std::endl;
+    std::cout << "BOOL:" << optionA.valueBool() << std::endl;
 }

@@ -1,8 +1,8 @@
-# BazPO - Program Options Argument Parser
+# **BazPO - Program Options Argument Parser**
 
-BazPO takes away all the hassle handling program arguments, all you need is a line per option!
+*BazPO takes away all the hassle handling program arguments, all you need is a line per option!*
 
-## Features
+## **Features**
 
 - Developer friendly and easy to use with advanced features.
 - Automatic value conversions.
@@ -13,85 +13,153 @@ BazPO takes away all the hassle handling program arguments, all you need is a li
 - Automatic program exit on invalid arguments when specified.
 - Type conversion extensibility
 
-## Getting Started
+## **Getting Started**
 
 - Download BazPO.hpp source code and add to your project folder
 - Include the downloaded header to your main program
 - Library will be compiled along with your program
 - **[Download BazPO Here](www.google.com)**
 
-**Example (1):**
+### **Functions / Usage**
+
+- Instantiate BazPO::Cli
+- Add your options
+- Call parse
+- Read your values
+
+- **Adding an option**
+  - Using add() [`see example 1`](#Example(1):)
+  - Defining the option by yourself [`see example 2`](#Example(2):)
+  
+- **Reading the values**
+  - Calling option(tag) with the tag you specified to get the option [`see example 1`](#Example(1):)
+  - When using tagless options specify the order number as a string tag [`see example 2`](#Example(2):)
+  - Calling value(tag)/values(tag) with the relevant tag to get option values directly [`see example 2`](#Example(2):)
+  - Directly reading from the defined object [`see example 3`](#Example(3):)
+
+### **Examples**
+
+#### **Example (1):**
 
 ```c++
 #include "BazPO.hpp"
 
 using namespace BazPO;
 
-int main(int argc,const char* argv[])
+int main(int argc, const char* argv[])
 {
     Cli po(argc, argv);
 
-    po.Add("-a", "--alpha", "Option A", true);
-    po.Add("-b", [&](const Option&) { /* do something */ }, "--bravo", "Option B");
+    po.add("-a", "--alpha", "Option A", true);
+    po.add("-b", [&](const Option&) { /* do something */ }, "--bravo", "Option B");
 
-    po.ParseArguments();
+    po.parse();
 
-    auto aoption = po.GetOption("-a");
+    auto aoption = po.option("-a");
 
     std::cout << "EXISTS:" << aoption.exists() << std::endl;
-    std::cout << "INT:" << aoption.value_as<int>() << std::endl;
-    std::cout << "BOOL:" << aoption.value_bool() << std::endl;
+    std::cout << "INT:" << aoption.valueAs<int>() << std::endl;
+    std::cout << "BOOL:" << aoption.valueBool() << std::endl;
 }
 ```
 
-**Example (2):**
+- Output
+
+```txt
+./myProgram
+<-a> is a required parameter
+
+myProgram       
+usage: myProgram  <-a> [-b] [-h]
+Program Options: 
+<-a>       --alpha          Option A
+[-b]       --bravo          Option B
+[-h]       --help           Prints this help message
+
+./myProgram -a 255
+EXISTS:1
+INT:255
+BOOL:0
+```
+
+#### **Example(2):**
 
 ```c++
 #include "BazPO.hpp"
 
 using namespace BazPO;
 
-int main(int argc,const char* argv[])
+int main(int argc, const char* argv[])
 {
     Cli po(argc, argv);
-    po.Add(5);
-    po.Add();
-    po.ParseArguments();
+    po.add(5);
+    po.add();
+    po.parse();
 
-    for(const auto& values : po.GetOption("0").values())
+    for(const auto& values : po.option("0").values())
         std::cout << values << std::endl;
 
-    std::cout << po.GetOption("1").value() << std::endl;
+    std::cout << po.option("1").value() << std::endl;
 }
 ```
 
-**Example (3):**
+- Output
+  
+```txt
+./myProgram input1 input2 input3 input4 input5 input6 input7
+Given value -> 'input7' is not expected
+BazPOManual
+usage: BazPOManual  [-h] [(5)]  [(1)]
+Program Options:
+[-h]       --help          Prints this help message
+
+./myProgram input1 input2 input3 input4 input5 input6
+input1
+input2
+input3
+input4
+input5
+input6
+```
+
+#### **Example(3):**
 
 ```c++
 #include "BazPO.hpp"
 
 using namespace BazPO;
 
-int main(int argc,const char* argv[])
+int main(int argc, const char* argv[])
 {
     Cli po(argc, argv);
 
-    ValueOption optionA(&po, "-a", "--alpha", "Option A");
+    ValueOption optionA(&po, "-a", "--alpha", "Option A", true);
     FunctionOption optionB(&po, "-b", [&](const Option& option) {
-            /* do something */
+        /* do something */
         }, "--bravo", "Option B");
 
-    po.UserInputRequiredForAbsentMandatoryOptions();
+    po.userInputRequired();
 
-    po.ParseArguments();
-    
+    po.parse();
+
     std::cout << "EXISTS:" << optionA.exists() << std::endl;
-    std::cout << "INT:" << optionA.value_as<int>() << std::endl;
-    std::cout << "BOOL:" << optionA.value_bool() << std::endl;
+    std::cout << "INT:" << optionA.valueAs<int>() << std::endl;
+    std::cout << "BOOL:" << optionA.valueBool() << std::endl;
 }
 ```
 
-## Options
+- Output
+  
+```txt
+./myProgram
+<-a> is a required parameter
+<-a>: True
+EXISTS:1
+INT:0
+BOOL:1
+```
+
+## **Options**
 
 ### **ValueOption**
 
@@ -123,9 +191,52 @@ myprogram -a value1 value2 value3 -a value4 -b
 myprogram value1 value2 value3 value4
 ```
 
-### **FunctionOption / FunctionMultiOption / FunctionTaglessOption**
+### **FunctionOption/FunctionMultiOption/FunctionTaglessOption**
 
 - Provided function will be executed if the given tag is provided as an argument with or without a value.
-- FunctionOption is parsed like [`ValueOption`](###ValueOption).
-- FunctionMultiOption is parsed like [`MultiOption`](###MultiOption).
-- FunctionTaglessOption is parsed like [`TaglessOption`](###TaglessOption).
+- FunctionOption is parsed like [`ValueOption`](#ValueOption).
+- FunctionMultiOption is parsed like [`MultiOption`](#MultiOption).
+- FunctionTaglessOption is parsed like [`TaglessOption`](#TaglessOption).
+
+### **Option Functions**
+
+- Option
+  - **exists()** -> option is present in the arguments list
+  - **existsCount()** -> returns the number the option is present i.e -a -a -a will return 3
+  - **value()** -> returns the raw argument value
+  - **valueAs<T>** -> converts the raw argument to the given type
+  - **valueBool()** -> returns true if argument is "1" or "True" or "true" or "t" or "y"
+  - **execute()** -> only available with [`Function Options`](#FunctionOption/FunctionMultiOption/FunctionTaglessOption)
+  - **values()** / **valuesAs<T>()** / **valuesBool()** -> same as their value counterpart but returns all provided values
+
+## Customizations
+
+### Asking For User Input When Mandatory Options Are Not Provided
+
+- Call **userInputRequired()** in your program, user will be asked to input values for your mandatory values.
+- For inputs, input stream could be changed to your choosen stream via **changeIO()**
+
+```c++
+    Cli po(argc, argv);
+    po.userInputRequired();
+```
+
+### Making Invalid/Expanded Arguments Acceptable
+
+- For example; when using tagless options, only 3 arguments are needed but calling the program with 4 arguments will cause to exit due to the unexpected argument.
+- This behaviour could be used to accept expanded files provided to the program such as "myprogram -a *.txt"
+- When used with other options, valid options will be parsed and program won't exit.
+
+```c++
+    Cli po(argc, argv);
+    po.add(3);
+    po.unexpectedArgumentsAcceptable();
+```
+
+### Disabling Auto Help
+
+- You can simply disable "-h" option by defining the value below before the header definition.
+
+```c++
+#define BazPO_DISABLE_AUTO_HELP_MESSAGE
+```
