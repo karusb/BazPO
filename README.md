@@ -18,7 +18,7 @@
 - Download BazPO.hpp source code and add to your project folder
 - Include the downloaded header to your main program
 - Library will be compiled along with your program
-- **[Download BazPO Here](www.google.com)**
+- **[Download BazPO Here](https://github.com/karusb/BazPO/archive/refs/tags/v0.0.1.zip)**
 
 ### **Functions / Usage**
 
@@ -28,14 +28,14 @@
 - Read your values
 
 - **Adding an option**
-  - Using add() [`see example 1`](#Example(1):)
-  - Defining the option by yourself [`see example 2`](#Example(2):)
+  - Using add() [`see example 1`](#example-1)
+  - Defining the option by yourself [`see example 2`](#example-2)
   
 - **Reading the values**
-  - Calling option(tag) with the tag you specified to get the option [`see example 1`](#Example(1):)
-  - When using tagless options specify the order number as a string tag [`see example 2`](#Example(2):)
-  - Calling value(tag)/values(tag) with the relevant tag to get option values directly [`see example 2`](#Example(2):)
-  - Directly reading from the defined object [`see example 3`](#Example(3):)
+  - Calling option(tag) with the tag you specified to get the option [`see example 1`](#example-1)
+  - When using tagless options specify the order number as a string tag [`see example 2`](#example-1)
+  - Calling value(tag)/values(tag) with the relevant tag to get option values directly [`see example 2`](#example-2)
+  - Directly reading from the defined object [`see example 3`](#example-3)
 
 ### **Examples**
 
@@ -206,7 +206,7 @@ myprogram value1 value2 value3 value4
   - **value()** -> returns the raw argument value
   - **valueAs<T>** -> converts the raw argument to the given type
   - **valueBool()** -> returns true if argument is "1" or "True" or "true" or "t" or "y"
-  - **execute()** -> only available with [`Function Options`](#FunctionOption/FunctionMultiOption/FunctionTaglessOption)
+  - **execute()** -> only available with [`Function Options`](#FunctionOptionFunctionMultiOptionFunctionTaglessOption)
   - **values()** / **valuesAs<T>()** / **valuesBool()** -> same as their value counterpart but returns all provided values
 
 ## Customizations
