@@ -4,19 +4,22 @@ BazPO takes away all the hassle handling program arguments, all you need is a li
 
 ## Features
 
-- Developer friendly and easy to use with advanced features
+- Developer friendly and easy to use with advanced features.
 - Automatic value conversions.
 - Automatic function execution with provided argument values.
 - Stream selection, to be able to change text input/output.
-- Ability to ask input from user or get input from stream
+- Ability to ask input from user or get input from stream.
 - Help option automatically added to your program with all your added options and descriptions. Can be disabled.
 - Automatic program exit on invalid arguments when specified.
+- Type conversion extensibility
 
 ## Getting Started
 
 - Download BazPO.hpp source code and add to your project folder
 - Include the downloaded header to your main program
-  
+- Library will be compiled along with your program
+- **[Download BazPO Here](www.google.com)**
+
 **Example (1):**
 
 ```c++
@@ -30,8 +33,6 @@ int main(int argc,const char* argv[])
 
     po.Add("-a", "--alpha", "Option A", true);
     po.Add("-b", [&](const Option&) { /* do something */ }, "--bravo", "Option B");
-
-    po.UserInputRequiredForAbsentMandatoryOptions();
 
     po.ParseArguments();
 
@@ -53,11 +54,32 @@ using namespace BazPO;
 int main(int argc,const char* argv[])
 {
     Cli po(argc, argv);
+    po.Add(5);
+    po.Add();
+    po.ParseArguments();
 
-    ValueOption optionA("-a", "--alpha", "Option A", false, &po);
-    FunctionOption optionB("-b", [&](const Option& option) {
+    for(const auto& values : po.GetOption("0").values())
+        std::cout << values << std::endl;
+
+    std::cout << po.GetOption("1").value() << std::endl;
+}
+```
+
+**Example (3):**
+
+```c++
+#include "BazPO.hpp"
+
+using namespace BazPO;
+
+int main(int argc,const char* argv[])
+{
+    Cli po(argc, argv);
+
+    ValueOption optionA(&po, "-a", "--alpha", "Option A");
+    FunctionOption optionB(&po, "-b", [&](const Option& option) {
             /* do something */
-        }, "--bravo", "Option B", false, &po);
+        }, "--bravo", "Option B");
 
     po.UserInputRequiredForAbsentMandatoryOptions();
 
@@ -78,12 +100,13 @@ int main(int argc,const char* argv[])
 Below argument list is valid and only one value is accepted.
 
 ```sh
-myprogram -a value1 -a value2
+myprogram -a value1 -a value2 -b
 ```
 
 ### **MultiOption**
 
 - All arguments provided after the tag will be considered values until a valid tag.
+- Max value count can be provided to limit the number of values that can be provided.
 
 Below argument list is valid for MultiOption only.
 
@@ -91,11 +114,6 @@ Below argument list is valid for MultiOption only.
 myprogram -a value1 value2 value3 -a value4 -b
 ```
 
-### **FunctionOption**
-
-- Provided function will be executed if the given tag is provided as an argument with or without a value.
-- FunctionOption is parsed like MultiOption
-  
 ### **TaglessOption**
 
 - A tag isnt needed, however other options cannot be used in conjunction with this option.
@@ -104,3 +122,10 @@ myprogram -a value1 value2 value3 -a value4 -b
 ```sh
 myprogram value1 value2 value3 value4
 ```
+
+### **FunctionOption / FunctionMultiOption / FunctionTaglessOption**
+
+- Provided function will be executed if the given tag is provided as an argument with or without a value.
+- FunctionOption is parsed like [`ValueOption`](###ValueOption).
+- FunctionMultiOption is parsed like [`MultiOption`](###MultiOption).
+- FunctionTaglessOption is parsed like [`TaglessOption`](###TaglessOption).

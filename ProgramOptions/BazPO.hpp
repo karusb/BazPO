@@ -20,15 +20,20 @@ namespace BazPO
 
 		virtual void Add(std::string option, std::string secondOption = "", std::string description = "", bool mandatory = false, bool multipleOptions = false, size_t maxValueCount = 1) = 0;
 		virtual void Add(size_t valueCount = 1, std::string description = "", bool mandatory = false) = 0;
+		virtual void Add(std::function<void(const Option&)> onExists, size_t valueCount = 1, std::string description = "", bool mandatory = false) = 0;
 		virtual void Add(std::string option, std::function<void(const Option&)> onExists, std::string secondOption = "", std::string description = "", bool mandatory = false, bool multipleOptions = false, size_t maxValueCount = 1) = 0;
         virtual void Add(Option& option) = 0;
 
     protected:
 		virtual void SetTaglessMode() { m_taglessMode = true; }
-		virtual bool IsTagless() { return m_taglessMode; }
+		virtual void SetNormalMode() { m_normalMode = true; }
+		void SetUndefinedMode() { m_normalMode = false; m_taglessMode = false; }
+		bool IsTagless() const { return m_taglessMode; }
+		bool IsNormal() const { return m_normalMode; }
 
 	private: 
 		bool m_taglessMode = false;
+		bool m_normalMode = false;
         friend class Option;
 	};
     namespace _detail
@@ -55,20 +60,22 @@ namespace BazPO
 		{
             if (po != nullptr)
             {
-                po->Add(*this);
                 if (ParseType == _detail::OptionParseType::Unidentified)
                     po->SetTaglessMode();
+                else
+                    po->SetNormalMode();
+                po->Add(*this);
             }
         }
 	public:
 		Option() = delete;
 		virtual ~Option() {};
 
-		bool exists() { return Exists; }
-		int exists_count() { return ExistsCount; }
+		bool exists() const { return Exists; }
+		int exists_count() const { return ExistsCount; }
 		const char* value() const { return Value; }
 		template <typename T>
-		T value_as()
+		T value_as() const
 		{
 			std::stringstream ss;
 			T v;
@@ -81,7 +88,7 @@ namespace BazPO
 
 		const std::deque<const char*>& values() const { return Values; }
 		template <typename T>
-		T values_as()
+		T values_as() const
 		{
 			std::deque<T> ret;
 			for (auto it = Values.begin(); it != Values.end(); ++it)
@@ -198,6 +205,20 @@ namespace BazPO
         std::function<void(const Option&)> f;
     };
 
+    class FunctionTaglessOption
+        : public TaglessOption
+    {
+    public:
+        FunctionTaglessOption(ICli* po, std::function<void(const Option&)> onExists, size_t valueCount = 1, std::string description = "", bool mandatory = false)
+            : TaglessOption(po, valueCount, description, mandatory)
+            , f(onExists)
+        {}
+        virtual void Execute(const Option& option) const override { f(option); }
+
+    private:
+        std::function<void(const Option&)> f;
+    };
+
 	class Cli
 		: public ICli
 	{
@@ -214,6 +235,7 @@ namespace BazPO
 					exit(0);
 				}
 			, "--help", "Prints this help message");
+            SetUndefinedMode();
 #endif
 		};
 		~Cli() { BazPO::_detail::TaglessOptionIDCounter = 0; };
@@ -221,9 +243,10 @@ namespace BazPO
 		virtual void Add(std::string option, std::string secondOption = "", std::string description = "", bool mandatory = false, bool multipleOptions = false, size_t maxValueCount = 1) override;
 		virtual void Add(std::string option, std::function<void(const Option&)> onExists, std::string secondOption = "", std::string description = "", bool mandatory = false, bool multipleOptions = false, size_t maxValueCount = 1) override;
 		virtual void Add(size_t valueCount = 1, std::string description = "", bool mandatory = false) override;
-		void Add(Option& option) override;
+        virtual void Add(std::function<void(const Option&)> onExists, size_t valueCount = 1, std::string description = "", bool mandatory = false) override;
+		virtual void Add(Option& option) override;
 
-		const Option& GetOption(std::string option);
+        const Option& GetOption(std::string option) const { return m_refMap.at(GetKey(option)); }
 		template <typename T>
 		T GetValueAs(std::string option)
 		{
@@ -232,7 +255,8 @@ namespace BazPO
 			auto key = GetKey(option);
 			return m_refMap.at(key).value_as<T>();
 		}
-		bool Exists(std::string option);
+        bool Exists(std::string option) const { return m_refMap.at(GetKey(option)).Exists; }
+        bool ExistsCount(std::string option) const { return m_refMap.at(GetKey(option)).ExistsCount; }
 		void PrintOptions();
 		void ParseArguments();
 		void ChangeIO(std::ostream* ostream, std::istream* istream = &std::cin);
@@ -243,16 +267,15 @@ namespace BazPO
 		void ParseNormal();
 		void ParseTagless();
 		void AskUserInputForMandatoryOptions();
-		std::string CreateSpaces(size_t spaceCount);
-		std::string GetKey(std::string option);
+		std::string GetKey(std::string option) const { return (m_aliasMap.find(option) != m_aliasMap.end()) ? m_aliasMap.at(option) : option; }
 		void RegisterLargestInput(size_t optionSize, size_t secondOptionSize, size_t descriptionSize);
 		void RegisterAlias(std::string option, std::string secondOption);
-		Option& FindOption(std::string key);
 		void PrintMultiArgumentParsingError(std::string key, std::string value);
         void PrintUnknownArgumentParsingError(std::string value);
 		void PrintOptionUsage(const Option& option);
 		void PrintOption(const Option& option);
 		std::string GetParameterWithMandatorySyntax(std::string value, bool mandatory);
+        void ThrowOnOptionMismatch(bool tagless);
 
 		size_t m_maxOptionParameterSize = 0;
 		size_t m_maxSecondOptionParameterSize = 0;
@@ -264,6 +287,7 @@ namespace BazPO
 		std::deque<MultiOption> m_multiValues;
 		std::deque<FunctionOption> m_functionalValues;
 		std::deque<FunctionMultiOption> m_functionalMultiValues;
+		std::deque<FunctionTaglessOption> m_functionalTaglessValues;
 		std::deque<TaglessOption> m_taglessOptions;
 		std::map<std::string, Option&> m_refMap;
 		std::map<std::string, std::string> m_aliasMap;
@@ -277,6 +301,8 @@ namespace BazPO
 	};
     void Cli::Add(std::string option, std::string secondOption, std::string description, bool mandatory, bool multipleOptions, size_t maxValueCount)
     {
+        SetNormalMode();
+        ThrowOnOptionMismatch(false);
         RegisterLargestInput(option.size(), secondOption.size(), description.size());
         Option* optionRef = nullptr;
         if (multipleOptions)
@@ -298,6 +324,8 @@ namespace BazPO
 
     void Cli::Add(std::string option, std::function<void(const Option&)> onExists, std::string secondOption, std::string description, bool mandatory, bool multipleOptions, size_t maxValueCount)
     {
+        SetNormalMode();
+        ThrowOnOptionMismatch(false);
         RegisterLargestInput(option.size(), secondOption.size(), description.size());
         Option* optionRef = nullptr;
         if (multipleOptions)
@@ -317,36 +345,32 @@ namespace BazPO
 
     void Cli::Add(size_t valueCount, std::string description, bool mandatory)
     {
+        SetTaglessMode();
+        ThrowOnOptionMismatch(true);
         RegisterLargestInput(_detail::TaglessOptionIDCounter % 10 + 1, 0, description.size());
         m_taglessOptions.push_back(TaglessOption(nullptr, valueCount, description, mandatory));
 
         auto id = std::to_string(_detail::TaglessOptionIDCounter - 1);
         m_refMap.insert({ id , *&m_taglessOptions.back() });
+    }
 
+    void Cli::Add(std::function<void(const Option&)> onExists, size_t valueCount, std::string description, bool mandatory)
+    {
         SetTaglessMode();
+        ThrowOnOptionMismatch(true);
+        RegisterLargestInput(_detail::TaglessOptionIDCounter % 10 + 1, 0, description.size());
+        m_functionalTaglessValues.push_back(FunctionTaglessOption(nullptr, onExists, valueCount, description, mandatory));
+
+        auto id = std::to_string(_detail::TaglessOptionIDCounter - 1);
+        m_refMap.insert({ id , *&m_functionalTaglessValues.back() });
     }
 
     void Cli::Add(Option& option)
     {
+        ThrowOnOptionMismatch(option.ParseType == _detail::OptionParseType::Unidentified);
         RegisterLargestInput(option.Parameter.size(), option.SecondParameter.size(), option.Description.size());
         m_refMap.insert({ option.Parameter, option });
         RegisterAlias(option.Parameter, option.SecondParameter);
-    }
-
-    const Option& Cli::GetOption(std::string option)
-    {
-        if (!m_parsed)
-            ParseArguments();
-        auto key = GetKey(option);
-        return m_refMap.at(key);
-    }
-
-    bool Cli::Exists(std::string option)
-    {
-        if (!m_parsed)
-            ParseArguments();
-        auto key = GetKey(option);
-        return m_refMap.at(key).Exists;
     }
 
     void Cli::ParseArguments()
@@ -387,6 +411,8 @@ namespace BazPO
                     it->second.setValue(m_argv[cursor]);
                 }
         }
+        if(cursor + 1 < m_argc && m_exitOnUnexpectedValue)
+            PrintUnknownArgumentParsingError(m_argv[cursor + 1]);
     }
 
     void Cli::ParseNormal()
@@ -446,16 +472,6 @@ namespace BazPO
                 }
             }
         }
-    }
-
-    inline std::string Cli::CreateSpaces(size_t spaceCount)
-    {
-        return std::string(" ", spaceCount);
-    }
-
-    inline std::string Cli::GetKey(std::string option)
-    {
-        return (m_aliasMap.find(option) != m_aliasMap.end()) ? m_aliasMap.at(option) : option;
     }
 
     void Cli::PrintOptions()
@@ -549,6 +565,13 @@ namespace BazPO
         else
             str.append("[").append(value).append("]");
         return str;
+    }
+
+    void Cli::ThrowOnOptionMismatch(bool tagless)
+    {
+        std::exception e("Tagless options cannot be combined with other options!");
+        if ((IsTagless() && IsNormal()) || (!IsTagless() && tagless) || (IsNormal() && tagless))
+            throw e;
     }
 }
 #endif

@@ -183,6 +183,14 @@ TEST_F(ProgramOptionsTest, program_exits_when_unknown_arguments_are_given)
     ASSERT_DEATH(po.ParseArguments(), "");
 }
 
+TEST_F(ProgramOptionsTest, program_exits_when_unknown_arguments_are_given_in_tagless_mode)
+{
+    Cli po{ argc, argv };
+    po.Add();
+
+    ASSERT_DEATH(po.ParseArguments(), "");
+}
+
 TEST_F(ProgramOptionsTest, program_exits_when_unknown_arguments_are_given_with_legit_ones)
 {
     Cli po{ argc, argv };
@@ -248,6 +256,7 @@ TEST_F(ProgramOptionsTest, multi_options_successful_with_limited_count)
     Cli po{ argc, argv };
     po.Add("-a", "--echo", "", false, true, 3);
     po.UnexpectedArgumentsAcceptable();
+    po.ParseArguments();
 
     auto a = po.GetOption("-a");
     EXPECT_EQ(3, a.values().size());
@@ -388,6 +397,34 @@ TEST_F(ProgramOptionsTest, function_option_contents_correct) {
     EXPECT_EQ(true, executed);
 }
 
+TEST_F(ProgramOptionsTest, function_multi_options_successful)
+{
+    bool executed = false;
+    int argc = 5;
+    const char* argv[5]{ {"programoptions"}, {"value1"}, {"value2"}, {"value3"}, {"value4"} };
+    Cli po{ argc, argv };
+    po.Add([&](const Option& option) {
+        EXPECT_EQ(4, option.values().size());
+        EXPECT_EQ(std::string("value1"), option.values()[0]);
+        EXPECT_EQ(std::string("value2"), option.values()[1]);
+        EXPECT_EQ(std::string("value3"), option.values()[2]);
+        EXPECT_EQ(std::string("value4"), option.values()[3]);
+        executed = true;
+        }, 4);
+
+    po.ParseArguments();
+
+    auto a = po.GetOption("0");
+
+    EXPECT_EQ(true, a.exists());
+
+    EXPECT_EQ(4, a.values().size());
+    EXPECT_EQ(std::string("value1"), a.values()[0]);
+    EXPECT_EQ(std::string("value2"), a.values()[1]);
+    EXPECT_EQ(std::string("value3"), a.values()[2]);
+    EXPECT_EQ(std::string("value4"), a.values()[3]);
+}
+
 TEST_F(ProgramOptionsTest, value_option_with_reference_succesful) {
     int argc = 3;
     const char* argv[3]{ {"programoptions"}, {"-a"}, {"Aoption"} };
@@ -455,6 +492,32 @@ TEST_F(ProgramOptionsTest, function_multi_option_with_reference_succesful) {
     EXPECT_EQ(std::string("value1"), option.values()[0]);
     EXPECT_EQ(std::string("value2"), option.values()[1]);
     EXPECT_EQ(std::string("value4"), option.values()[2]);
+}
+
+TEST_F(ProgramOptionsTest, function_multi_options_with_reference_successful)
+{
+    bool executed = false;
+    int argc = 5;
+    const char* argv[5]{ {"programoptions"}, {"value1"}, {"value2"}, {"value3"}, {"value4"} };
+    Cli po{ argc, argv };
+    FunctionTaglessOption option(&po, [&](const Option& option) {
+        EXPECT_EQ(4, option.values().size());
+        EXPECT_EQ(std::string("value1"), option.values()[0]);
+        EXPECT_EQ(std::string("value2"), option.values()[1]);
+        EXPECT_EQ(std::string("value3"), option.values()[2]);
+        EXPECT_EQ(std::string("value4"), option.values()[3]);
+        executed = true;
+        }, 4);
+
+    po.ParseArguments();
+
+    EXPECT_EQ(true, option.exists());
+
+    EXPECT_EQ(4, option.values().size());
+    EXPECT_EQ(std::string("value1"), option.values()[0]);
+    EXPECT_EQ(std::string("value2"), option.values()[1]);
+    EXPECT_EQ(std::string("value3"), option.values()[2]);
+    EXPECT_EQ(std::string("value4"), option.values()[3]);
 }
 
 TEST_F(ProgramOptionsTest, tagless_options_successful_with_multiple_values)
@@ -543,9 +606,37 @@ TEST_F(ProgramOptionsTest, tagless_option_with_reference_succesful_2) {
     EXPECT_EQ(std::string("value4"), a.values()[3]);
 }
 
+TEST_F(ProgramOptionsTest, tagless_then_other_mismatch_throws) {
+    Cli po(argc, argv);
+    po.Add();
+
+    EXPECT_ANY_THROW(po.Add("-a"));
+}
+
+TEST_F(ProgramOptionsTest, other_then_tagless_mismatch_throws) {
+    Cli po(argc, argv);
+    po.Add("-a");
+
+    EXPECT_ANY_THROW(po.Add());
+}
+
+TEST_F(ProgramOptionsTest, tagless_then_other_reference_mismatch_throws) {
+    Cli po(argc, argv);
+    TaglessOption a(&po);
+    
+    EXPECT_ANY_THROW(ValueOption a(&po, ""));
+}
+
+TEST_F(ProgramOptionsTest, other_then_tagless_reference_mismatch_throws) {
+    Cli po(argc, argv);
+    ValueOption a(&po, "");
+
+    EXPECT_ANY_THROW(TaglessOption a(&po));
+}
+
 TEST_F(ProgramOptionsTest, options_print) {
     int argc = 1;
-    const char* argv[] = { "programoptions"};
+    const char* argv[] = { "programoptions" };
     Cli po(argc, argv);
     po.Add("-a", "--alpha", "Option A");
     po.Add("-b", "--bravo", "Option B");
@@ -553,5 +644,13 @@ TEST_F(ProgramOptionsTest, options_print) {
     po.Add("-d", "--delta", "Option D");
     po.Add("-f", "--foxtrot", "Option F");
     po.Add("-e", "--echo", "Option E");
+    po.PrintOptions();
+}
+
+TEST_F(ProgramOptionsTest, tagless_options_print) {
+    int argc = 1;
+    const char* argv[] = { "programoptions" };
+    Cli po(argc, argv);
+    po.Add(4, "My values");
     po.PrintOptions();
 }
