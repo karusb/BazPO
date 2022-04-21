@@ -2,7 +2,7 @@
 //
 
 #include <iostream>
-#include "../ProgramOptions/BazPO.hpp"
+#include "../include/BazPO.hpp"
 int main(int argc,const char* argv[])
 {
     BazPO::Cli po(argc, argv, "asdg asghhm asg hgasoasht asfgally");
