@@ -454,12 +454,14 @@ namespace BazPO
         {
             if (pair.second.Mandatory && !pair.second.Exists)
             {
-                *m_outputStream << pair.second.Parameter << " is a required parameter" << std::endl;
+                PrintOptionUsage(pair.second);
+                *m_outputStream << " is a required parameter" << std::endl;
                 if (m_askInputForMandatoryOptions)
                 {
+                    PrintOptionUsage(pair.second);
+                    *m_outputStream << ": ";
                     std::string temp;
-                    *m_outputStream << pair.second.Parameter << ": " << std::endl;
-                    *m_inputStream >> temp;
+                    std::getline(*m_inputStream, temp);
 
                     m_inputStorage.push_back(temp);
                     pair.second.Value = m_inputStorage.back().c_str();
@@ -566,10 +568,18 @@ namespace BazPO
             str.append("[").append(value).append("]");
         return str;
     }
-
+    namespace _detail
+    {
+        class OptionMismatchException
+            : public std::exception
+        {
+            const char* err = "Tagless options cannot be combined with other options!";
+            virtual const char* what() const noexcept override { return err; };
+        };
+    }
     void Cli::ThrowOnOptionMismatch(bool tagless)
     {
-        std::exception e("Tagless options cannot be combined with other options!");
+        _detail::OptionMismatchException e;
         if ((IsTagless() && IsNormal()) || (!IsTagless() && tagless) || (IsNormal() && tagless))
             throw e;
     }

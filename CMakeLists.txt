@@ -11,8 +11,8 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 include(GNUInstallDirs)
-add_library(BazPO INTERFACE
-            include/BazPO.hpp)
+
+add_library(BazPO INTERFACE)
 
 target_include_directories(
   BazPO

@@ -359,6 +359,38 @@ TEST_F(ProgramOptionsTest, mandatory_option_asked_when_not_provided) {
     EXPECT_EQ(std::string("input"), a.value());
 }
 
+TEST_F(ProgramOptionsTest, multi_line_input_parsed_correctly) {
+    int argc = 1;
+    const char* argv[] = { "programoptions" };
+    std::stringstream str("input input2 input3");
+    Cli po(argc, argv);
+    po.UserInputRequiredForAbsentMandatoryOptions();
+    po.Add("-a", "--alpha", "Option A", true);
+    po.ChangeIO(&std::cout, &str);
+
+    po.ParseArguments();
+
+    auto a = po.GetOption("-a");
+    EXPECT_EQ(true, a.exists());
+    EXPECT_EQ(std::string("input input2 input3"), a.value());
+}
+
+TEST_F(ProgramOptionsTest, multi_line_double_parsed_correctly) {
+    int argc = 1;
+    const char* argv[] = { "programoptions" };
+    std::stringstream str("15.87396509125677 \r\n");
+    Cli po(argc, argv);
+    po.UserInputRequiredForAbsentMandatoryOptions();
+    po.Add("-a", "--alpha", "Option A", true);
+    po.ChangeIO(&std::cout, &str);
+
+    po.ParseArguments();
+
+    auto a = po.GetOption("-a");
+    EXPECT_EQ(true, a.exists());
+    EXPECT_EQ(15.87396509125677, a.value_as<double>());
+}
+
 TEST_F(ProgramOptionsTest, function_option_executes_successfully) {
     bool executed = false;
     int argc = 2;

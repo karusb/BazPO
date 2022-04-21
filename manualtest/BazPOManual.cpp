@@ -15,8 +15,9 @@ int main(int argc,const char* argv[])
     auto aoption = po.GetOption("-a");
 
     std::cout << "EXISTS:" << aoption.exists() << std::endl;
+    std::cout << "VALUE:" << aoption.value() << std::endl;
     std::cout << "INT:" << aoption.value_as<int>() << std::endl;
     std::cout << "BOOL:" << aoption.value_bool() << std::endl;
-    std::cout << aoption.value();
+
     while (1);
 }
