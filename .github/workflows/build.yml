@@ -47,6 +47,12 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           sonar-scanner --define sonar.host.url="${{ env.SONAR_SERVER_URL }}" --define sonar.cfamily.build-wrapper-output="${{ env.BUILD_WRAPPER_OUT_DIR }}"
+      - name: Configure & Build Coverage
+        run : |
+          cmake -E env CXXFLAGS="--coverage" cmake -S . -B coverage && cmake --build coverage
       - name: Tests
         run: | 
-          cmake --build build/ --target test
+          cd coverage && ctest && cd -
+      - name: Generate Coverage Report
+        run: | 
+          cd coverage && gcov test/CMakeFiles/BazPOTest.dir/test.cpp.gcda && cd -
