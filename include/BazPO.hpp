@@ -345,6 +345,8 @@ namespace BazPO
         Option* optionRef = nullptr;
         if (multipleOptions)
         {
+            if (maxValueCount == 1)
+                maxValueCount = SIZE_MAX;
             m_functionalMultiValues.emplace_back(nullptr, option, onExists, secondOption, description, mandatory, maxValueCount);
             optionRef = &m_functionalMultiValues.back();
         }

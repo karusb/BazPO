@@ -493,7 +493,7 @@ TEST_F(ProgramOptionsTest, function_multi_options_successful)
 
     po.parse();
 
-    auto& a = po.option("0");
+    auto& a = po.option("-a");
 
     EXPECT_EQ(true, a.exists());
 
