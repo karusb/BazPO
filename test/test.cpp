@@ -480,17 +480,16 @@ TEST_F(ProgramOptionsTest, function_option_contents_correct) {
 TEST_F(ProgramOptionsTest, function_multi_options_successful)
 {
     bool executed = false;
-    int argc = 5;
-    const char* argv[5]{ {"programoptions"}, {"value1"}, {"value2"}, {"value3"}, {"value4"} };
+    int argc = 6;
+    const char* argv[6]{ {"programoptions"}, {"-a"}, {"value1"}, {"value2"}, {"-a"}, {"value4"} };
     Cli po{ argc, argv };
-    po.add([&](const Option& option) {
-        EXPECT_EQ(4, option.values().size());
+    po.add("-a", [&](const Option& option) {
+        EXPECT_EQ(3, option.values().size());
         EXPECT_EQ(std::string("value1"), option.values()[0]);
         EXPECT_EQ(std::string("value2"), option.values()[1]);
-        EXPECT_EQ(std::string("value3"), option.values()[2]);
-        EXPECT_EQ(std::string("value4"), option.values()[3]);
+        EXPECT_EQ(std::string("value4"), option.values()[2]);
         executed = true;
-        }, 4);
+        }, "", "", false, true);
 
     po.parse();
 
@@ -498,11 +497,10 @@ TEST_F(ProgramOptionsTest, function_multi_options_successful)
 
     EXPECT_EQ(true, a.exists());
 
-    EXPECT_EQ(4, a.values().size());
+    EXPECT_EQ(3, a.values().size());
     EXPECT_EQ(std::string("value1"), a.values()[0]);
     EXPECT_EQ(std::string("value2"), a.values()[1]);
-    EXPECT_EQ(std::string("value3"), a.values()[2]);
-    EXPECT_EQ(std::string("value4"), a.values()[3]);
+    EXPECT_EQ(std::string("value4"), a.values()[2]);
 }
 
 TEST_F(ProgramOptionsTest, function_tagless_option_successful)
