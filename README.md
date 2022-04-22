@@ -1,4 +1,8 @@
 # **BazPO - Program Options Argument Parser**
+![Version](https://img.shields.io/github/v/release/karusb/BazPO?include_prereleases&style=flat)
+![Build Status](https://github.com/karusb/BazPO/actions/workflows/build.yml/badge.svg)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=karusb_BazPO&metric=coverage)](https://sonarcloud.io/summary/new_code?id=karusb_BazPO)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=karusb_BazPO&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=karusb_BazPO)
 
 *BazPO takes away all the hassle handling program arguments, all you need is a line per option!*
 
@@ -9,9 +13,8 @@
 - Automatic function execution with provided argument values.
 - Stream selection, to be able to change text input/output.
 - Ability to ask input from user or get input from stream.
-- Help option automatically added to your program with all your added options and descriptions. Can be disabled.
 - Automatic program exit on invalid arguments when specified.
-- Type conversion extensibility
+- Type conversion extensibility.
 
 ## **Getting Started**
 
@@ -22,10 +25,10 @@
 
 ### **Functions / Usage**
 
-- Instantiate BazPO::Cli
-- Add your options
-- Call parse
-- Read your values
+1. Instantiate BazPO::Cli
+2. Add your options
+3. Call parse
+4. Read your values
 
 - **Adding an option**
   - Using add() [`see example 1`](#example-1)
@@ -63,7 +66,7 @@ int main(int argc, const char* argv[])
 }
 ```
 
-- Output
+- Outputs
 
 ```txt
 ./myProgram
@@ -103,13 +106,13 @@ int main(int argc, const char* argv[])
 }
 ```
 
-- Output
+- Outputs
   
 ```txt
 ./myProgram input1 input2 input3 input4 input5 input6 input7
 Given value -> 'input7' is not expected
-BazPOManual
-usage: BazPOManual  [-h] [(5)]  [(1)]
+myProgram
+usage: myProgram  [-h] [(5)]  [(1)]
 Program Options:
 [-h]       --help          Prints this help message
 
@@ -148,7 +151,7 @@ int main(int argc, const char* argv[])
 }
 ```
 
-- Output
+- Outputs
   
 ```txt
 ./myProgram
