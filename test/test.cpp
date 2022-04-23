@@ -26,6 +26,38 @@ TEST_F(ProgramOptionsTest, add_then_get_successful)
     EXPECT_EQ(std::string("Aoption"), a.value());
 }
 
+TEST_F(ProgramOptionsTest, default_value_returned_when_option_doesnt_exist)
+{
+    int argc = 1;
+    const char* argv[1]{ {"programoptions"}};
+    Cli po{ argc, argv };
+    po.add("-a", "--alpha", "Option A", "my default value");
+    po.parse();
+
+    auto& a = po.option("-a");
+
+    EXPECT_EQ(false, a.exists());
+
+    EXPECT_EQ(std::string("my default value"), a.value());
+}
+
+TEST_F(ProgramOptionsTest, default_value_not_reachable_when_option_exist)
+{
+    int argc = 3;
+    const char* argv[3]{ {"programoptions"}, {"-a"}, {"Aoption"} };
+    Cli po{ argc, argv };
+    po.add("-a", "--alpha", "Option A", "my default value");
+    po.parse();
+
+    auto& a = po.option("-a");
+
+    EXPECT_EQ(true, a.exists());
+
+    EXPECT_EQ(std::string("Aoption"), a.value());
+    EXPECT_EQ(1, a.values().size());
+    EXPECT_EQ(std::string("Aoption"), a.values()[0]);
+}
+
 TEST_F(ProgramOptionsTest, get_second_option_successful)
 {
     int argc = 3;
@@ -69,6 +101,20 @@ TEST_F(ProgramOptionsTest, double_conversion_succesful)
     EXPECT_EQ(15.2156, a.valueAs<double>());
 }
 
+TEST_F(ProgramOptionsTest, string_conversion_succesful)
+{
+    int argc = 3;
+    const char* argv[3]{ {"programoptions"}, {"-a"}, {"some text with multiple spaces"} };
+    Cli po{ argc, argv };
+    po.add("-a", "--alpha", "Option A");
+    po.parse();
+
+    auto& a = po.option("-a");
+
+    EXPECT_EQ(true, a.exists());
+    EXPECT_EQ("some text with multiple spaces", a.valueAs<std::string>());
+}
+
 TEST_F(ProgramOptionsTest, bool_conversion_succesful)
 {
     int argc = 6;
@@ -84,13 +130,13 @@ TEST_F(ProgramOptionsTest, bool_conversion_succesful)
     auto& c = po.option("-c");
 
     EXPECT_EQ(true, a.exists());
-    EXPECT_EQ(true, a.valueBool());
+    EXPECT_EQ(true, a.valueAs<bool>());
 
     EXPECT_EQ(true, b.exists());
-    EXPECT_EQ(false, b.valueBool());
+    EXPECT_EQ(false, b.valueAs<bool>());
 
     EXPECT_EQ(true, c.exists());
-    EXPECT_EQ(false, c.valueBool());
+    EXPECT_EQ(false, c.valueAs<bool>());
 }
 
 TEST_F(ProgramOptionsTest, all_options_are_found)
@@ -115,6 +161,57 @@ TEST_F(ProgramOptionsTest, all_options_are_found)
 
     EXPECT_EQ(true, c.exists());
     EXPECT_EQ(std::string(""), c.value());
+}
+
+TEST_F(ProgramOptionsTest, values_returns_correct_contents)
+{
+    int argc = 7;
+    const char* argv[7]{ {"programoptions"}, {"-a"}, {"Aoption"}, {"-a"}, {"Boption"}, {"-a"}, {"Coption"} };
+    Cli po{ argc, argv };
+    po.add("-a", "--alpha", "Option A");
+    po.add("-b", "--bravo", "Option B");
+    po.add("-c", "--charlie", "Option C");
+    po.parse();
+
+    auto& a = po.option("-a");
+
+    EXPECT_EQ(true, a.exists());
+    std::deque<const char*> expected{ argv[2], argv[4], argv[6]};
+    EXPECT_EQ(expected, a.values());
+}
+
+TEST_F(ProgramOptionsTest, values_returns_correct_string_contents)
+{
+    int argc = 7;
+    const char* argv[7]{ {"programoptions"}, {"-a"}, {"Aoption"}, {"-a"}, {"Boption"}, {"-a"}, {"Coption"} };
+    Cli po{ argc, argv };
+    po.add("-a", "--alpha", "Option A");
+    po.add("-b", "--bravo", "Option B");
+    po.add("-c", "--charlie", "Option C");
+    po.parse();
+
+    auto& a = po.option("-a");
+
+    EXPECT_EQ(true, a.exists());
+    std::deque<std::string> expected{ "Aoption", "Boption", "Coption" };
+    EXPECT_EQ(expected, a.valuesAs<std::string>());
+}
+
+TEST_F(ProgramOptionsTest, values_returns_correct_bool_contents)
+{
+    int argc = 7;
+    const char* argv[7]{ {"programoptions"}, {"-a"}, {"True"}, {"-a"}, {"y"}, {"-a"}, {"Coption"} };
+    Cli po{ argc, argv };
+    po.add("-a", "--alpha", "Option A");
+    po.add("-b", "--bravo", "Option B");
+    po.add("-c", "--charlie", "Option C");
+    po.parse();
+
+    auto& a = po.option("-a");
+
+    EXPECT_EQ(true, a.exists());
+    std::deque<bool> expected{ true, true, false };
+    EXPECT_EQ(expected, a.valuesAs<bool>());
 }
 
 TEST_F(ProgramOptionsTest, exist_count_successful)
@@ -166,12 +263,12 @@ TEST_F(ProgramOptionsTest, program_exits_when_help_is_provided)
     EXPECT_EXIT(po.parse(), testing::ExitedWithCode(0), "");
 }
 
-TEST_F(ProgramOptionsTest, DISABLED_program_exits_when_help_is_provided_with_mandatory_option)
+TEST_F(ProgramOptionsTest, program_exits_when_help_is_provided_with_mandatory_option)
 {
     int argc = 2;
     const char* argv[2]{ {"programoptions"}, {"-h"} };
     Cli po{ argc, argv };
-    po.add("-a", "--alpha", "Option A", true);
+    po.add("-a", "--alpha", "Option A", "", true);
 
     EXPECT_EXIT(po.parse(), testing::ExitedWithCode(0), "");
 }
@@ -224,12 +321,56 @@ TEST_F(ProgramOptionsTest, program_works_when_unknown_arguments_are_given_with_l
     EXPECT_EQ(1, a.values().size());
 }
 
+TEST_F(ProgramOptionsTest, prioritized_option_is_defined_and_provided_different_args_not_parsed_cli)
+{
+    Cli po{ argc, argv };
+    po.add("-a", "--echo", "");
+    po.add("-b", "--bravo");
+    po.add("-c", "--charlie");
+
+    po.prioritizeOption("-c");
+    po.parse();
+
+    auto& c = po.option("-c");
+    EXPECT_EQ(true, c.exists());
+    EXPECT_EQ(1, c.existsCount());
+    EXPECT_EQ(std::string("-d"), c.value());
+    EXPECT_EQ(1, c.values().size());
+
+    auto& a = po.option("-a");
+    EXPECT_EQ(false, a.exists());
+    EXPECT_EQ(0, a.existsCount());
+    EXPECT_EQ(std::string(""), a.value());
+    EXPECT_EQ(0, a.values().size());
+}
+
+TEST_F(ProgramOptionsTest, prioritized_option_is_defined_and_provided_different_args_not_parsed_reference)
+{
+    Cli po{ argc, argv };
+    ValueOption optionA(&po, "-a", "--alpha");
+    ValueOption optionB(&po, "-b", "--bravo");
+    ValueOption optionC(&po, "-c", "--charlie");
+
+    optionC.prioritize();
+    po.parse();
+
+    EXPECT_EQ(true, optionC.exists());
+    EXPECT_EQ(1, optionC.existsCount());
+    EXPECT_EQ(std::string("-d"), optionC.value());
+    EXPECT_EQ(1, optionC.values().size());
+
+    EXPECT_EQ(false, optionA.exists());
+    EXPECT_EQ(0, optionA.existsCount());
+    EXPECT_EQ(std::string(""), optionA.value());
+    EXPECT_EQ(0, optionA.values().size());
+}
+
 TEST_F(ProgramOptionsTest, multi_options_successful)
 {
     int argc = 6;
     const char* argv[6]{ {"programoptions"}, {"-a"}, {"value1"}, {"value2"}, {"value3"}, {"value4"} };
     Cli po{ argc, argv };
-    po.add("-a", "--echo", "", false, true);
+    po.add("-a", "--echo", "", "", false, true);
     po.add("-b", "--bravo");
     po.add("-c", "--charlie");
     po.parse();
@@ -254,7 +395,7 @@ TEST_F(ProgramOptionsTest, multi_options_unsuccessful_with_limited_count)
     int argc = 6;
     const char* argv[6]{ {"programoptions"}, {"-a"}, {"value1"}, {"value2"}, {"value3"}, {"value4"} };
     Cli po{ argc, argv };
-    po.add("-a", "--echo", "", false, true, 3);
+    po.add("-a", "--echo", "", "", false, true, 3);
 
     ASSERT_DEATH(po.parse(), "");
 }
@@ -264,7 +405,7 @@ TEST_F(ProgramOptionsTest, multi_options_successful_with_limited_count)
     int argc = 6;
     const char* argv[6]{ {"programoptions"}, {"-a"}, {"value1"}, {"value2"}, {"value3"}, {"value4"} };
     Cli po{ argc, argv };
-    po.add("-a", "--echo", "", false, true, 3);
+    po.add("-a", "--echo", "", "", false, true, 3);
     po.unexpectedArgumentsAcceptable();
     po.parse();
 
@@ -280,7 +421,7 @@ TEST_F(ProgramOptionsTest, multi_options_with_multi_tags_successful)
     int argc = 6;
     const char* argv[6]{ {"programoptions"}, {"-a"}, {"value1"}, {"value2"}, {"-a"}, {"value4"} };
     Cli po{ argc, argv };
-    po.add("-a", "--echo", "", false, true);
+    po.add("-a", "--echo", "", "", false, true);
     po.add("-b", "--bravo");
     po.add("-c", "--charlie");
     po.parse();
@@ -304,7 +445,7 @@ TEST_F(ProgramOptionsTest, multi_options_with_unknown_tags_successful)
     int argc = 6;
     const char* argv[6]{ {"programoptions"}, {"-a"}, {"value1"}, {"value2"}, {"-d"}, {"value4"} };
     Cli po{ argc, argv };
-    po.add("-a", "--echo", "", false, true);
+    po.add("-a", "--echo", "", "", false, true);
     po.parse();
 
     auto& a = po.option("-a");
@@ -323,7 +464,7 @@ TEST_F(ProgramOptionsTest, value_option_with_unknown_tags_successful_with_accept
     int argc = 6;
     const char* argv[6]{ {"programoptions"}, {"-a"}, {"value1"}, {"value2"}, {"-d"}, {"value4"} };
     Cli po{ argc, argv };
-    po.add("-a", "--echo", "", false);
+    po.add("-a", "--echo");
     po.unexpectedArgumentsAcceptable();
     po.parse();
 
@@ -376,7 +517,7 @@ TEST_F(ProgramOptionsTest, mandatory_option_asked_when_not_provided) {
     std::stringstream str("input");
     Cli po(argc, argv);
     po.userInputRequired();
-    po.add("-a", "--alpha", "Option A", true);
+    po.add("-a", "--alpha", "Option A", "", true);
     po.changeIO(&std::cout, &str);
 
     po.parse();
@@ -392,7 +533,7 @@ TEST_F(ProgramOptionsTest, multi_line_input_parsed_as_whole_line) {
     std::stringstream str("input input2 input3");
     Cli po(argc, argv);
     po.userInputRequired();
-    po.add("-a", "--alpha", "Option A", true);
+    po.add("-a", "--alpha", "Option A", "", true);
     po.changeIO(&std::cout, &str);
 
     po.parse();
@@ -408,7 +549,7 @@ TEST_F(ProgramOptionsTest, multi_line_double_parsed_correctly) {
     std::stringstream str("15.87396509125677 \r\n");
     Cli po(argc, argv);
     po.userInputRequired();
-    po.add("-a", "--alpha", "Option A", true);
+    po.add("-a", "--alpha", "Option A", "", true);
     po.changeIO(&std::cout, &str);
 
     po.parse();
@@ -471,7 +612,7 @@ TEST_F(ProgramOptionsTest, function_option_contents_correct) {
         EXPECT_EQ(std::string("value1"), option.values()[0]);
         EXPECT_EQ(std::string("value4"), option.values()[1]);
         executed = true;
-        }, "--alpha", "Option A", true);
+        }, "--alpha", "Option A", "", true);
 
     po.parse();
     EXPECT_EQ(true, executed);
@@ -489,7 +630,7 @@ TEST_F(ProgramOptionsTest, function_multi_options_successful)
         EXPECT_EQ(std::string("value2"), option.values()[1]);
         EXPECT_EQ(std::string("value4"), option.values()[2]);
         executed = true;
-        }, "", "", false, true);
+        }, "", "", "", false, true);
 
     po.parse();
 
@@ -534,7 +675,7 @@ TEST_F(ProgramOptionsTest, value_option_with_reference_succesful) {
     int argc = 3;
     const char* argv[3]{ {"programoptions"}, {"-a"}, {"Aoption"} };
     Cli po(argc, argv);
-    ValueOption option(&po, "-a", "--alpha", "Option A", false);
+    ValueOption option(&po, "-a", "--alpha", "Option A");
 
     po.parse();
 
@@ -546,7 +687,7 @@ TEST_F(ProgramOptionsTest, multi_option_with_reference_succesful) {
     int argc = 6;
     const char* argv[6]{ {"programoptions"}, {"-a"}, {"value1"}, {"value2"}, {"-a"}, {"value4"} };
     Cli po(argc, argv);
-    MultiOption option(&po, "-a", "--alpha", "Option A", false);
+    MultiOption option(&po, "-a", "--alpha", "Option A");
 
     po.parse();
 
@@ -567,7 +708,7 @@ TEST_F(ProgramOptionsTest, function_option_with_reference_succesful) {
         EXPECT_EQ(std::string("value1"), option.values()[0]);
         EXPECT_EQ(std::string("value4"), option.values()[1]);
         executed = true;
-        }, "--alpha", "Option A", false);
+        }, "--alpha", "Option A");
 
     po.parse();
     EXPECT_EQ(true, executed);
@@ -698,7 +839,7 @@ TEST_F(ProgramOptionsTest, tagless_option_with_reference_succesful_2) {
     int argc = 5;
     const char* argv[5]{ {"programoptions"}, {"value1"}, {"value2"}, {"value3"}, {"value4"} };
     Cli po(argc, argv);
-    TaglessOption a(&po, 4, "Option A", false);
+    TaglessOption a(&po, 4, "Option A");
 
     po.parse();
 

@@ -10,7 +10,7 @@ int main(int argc, const char* argv[])
 {
     Cli po(argc, argv);
 
-    ValueOption optionA(&po, "-a", "--alpha", "Option A", true);
+    ValueOption optionA(&po, "-a", "--alpha", "Option A", "", true);
     FunctionOption optionB(&po, "-b", [&](const Option& option) {
         /* do something */
         }, "--bravo", "Option B");
@@ -21,5 +21,5 @@ int main(int argc, const char* argv[])
 
     std::cout << "EXISTS:" << optionA.exists() << std::endl;
     std::cout << "INT:" << optionA.valueAs<int>() << std::endl;
-    std::cout << "BOOL:" << optionA.valueBool() << std::endl;
+    std::cout << "BOOL:" << optionA.valueAs<bool>() << std::endl;
 }
