@@ -287,7 +287,7 @@ TEST_F(ProgramOptionsTest, program_exits_when_unknown_arguments_are_given)
 {
     Cli po{ argc, argv };
 
-    ASSERT_DEATH(po.parse(), "");
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
 }
 
 TEST_F(ProgramOptionsTest, program_exits_when_unknown_arguments_are_given_in_tagless_mode)
@@ -295,7 +295,7 @@ TEST_F(ProgramOptionsTest, program_exits_when_unknown_arguments_are_given_in_tag
     Cli po{ argc, argv };
     po.add();
 
-    ASSERT_DEATH(po.parse(), "");
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
 }
 
 TEST_F(ProgramOptionsTest, program_exits_when_unknown_arguments_are_given_with_legit_ones)
@@ -303,7 +303,7 @@ TEST_F(ProgramOptionsTest, program_exits_when_unknown_arguments_are_given_with_l
     Cli po{ argc, argv };
     po.add("-a", "--alpha", "Option A");
 
-    ASSERT_DEATH(po.parse(), "");
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
 }
 
 TEST_F(ProgramOptionsTest, program_works_when_unknown_arguments_are_given_with_legit_ones_and_UnexpectedArgumentsAcceptable)
@@ -328,7 +328,7 @@ TEST_F(ProgramOptionsTest, prioritized_option_is_defined_and_provided_different_
     po.add("-b", "--bravo");
     po.add("-c", "--charlie");
 
-    po.prioritizeOption("-c");
+    po.prioritize("-c");
     po.parse();
 
     auto& c = po.option("-c");
@@ -373,6 +373,32 @@ TEST_F(ProgramOptionsTest, multi_options_successful)
     po.add("-a", "--echo", "", "", false, true);
     po.add("-b", "--bravo");
     po.add("-c", "--charlie");
+    po.parse();
+
+    auto& a = po.option("-a");
+    auto& b = po.option("-b");
+    auto& c = po.option("-c");
+
+    EXPECT_EQ(true, a.exists());
+    EXPECT_EQ(false, b.exists());
+    EXPECT_EQ(false, c.exists());
+
+    EXPECT_EQ(4, a.values().size());
+    EXPECT_EQ(std::string("value1"), a.values()[0]);
+    EXPECT_EQ(std::string("value2"), a.values()[1]);
+    EXPECT_EQ(std::string("value3"), a.values()[2]);
+    EXPECT_EQ(std::string("value4"), a.values()[3]);
+}
+
+TEST_F(ProgramOptionsTest, prioritized_multi_options_successful)
+{
+    int argc = 6;
+    const char* argv[6]{ {"programoptions"}, {"-a"}, {"value1"}, {"value2"}, {"value3"}, {"value4"} };
+    Cli po{ argc, argv };
+    po.add("-a", "--echo", "", "", true, true);
+    po.add("-b", "--bravo", "", "", true);
+    po.add("-c", "--charlie", "", "", true);
+    po.prioritize("-a");
     po.parse();
 
     auto& a = po.option("-a");
@@ -856,28 +882,42 @@ TEST_F(ProgramOptionsTest, tagless_then_other_mismatch_throws) {
     Cli po(argc, argv);
     po.add();
 
-    EXPECT_ANY_THROW(po.add("-a"));
+    EXPECT_THROW(po.add("-a"), _detail::OptionMismatchException);
 }
 
 TEST_F(ProgramOptionsTest, other_then_tagless_mismatch_throws) {
     Cli po(argc, argv);
     po.add("-a");
 
-    EXPECT_ANY_THROW(po.add());
+    EXPECT_THROW(po.add(), _detail::OptionMismatchException);
 }
 
 TEST_F(ProgramOptionsTest, tagless_then_other_reference_mismatch_throws) {
     Cli po(argc, argv);
     TaglessOption a(&po);
     
-    EXPECT_ANY_THROW(ValueOption a(&po, ""));
+    EXPECT_THROW(ValueOption a(&po, ""), _detail::OptionMismatchException);
 }
 
 TEST_F(ProgramOptionsTest, other_then_tagless_reference_mismatch_throws) {
     Cli po(argc, argv);
     ValueOption a(&po, "");
 
-    EXPECT_ANY_THROW(TaglessOption a(&po));
+    EXPECT_THROW(TaglessOption a(&po), _detail::OptionMismatchException);
+}
+
+TEST_F(ProgramOptionsTest, tagless_throws_if_prioritized) {
+    Cli po(argc, argv);
+    po.add();
+
+    EXPECT_THROW(po.prioritize("0"), _detail::PrioritizationOptionMismatch);
+}
+
+TEST_F(ProgramOptionsTest, tagless_reference_throws_if_prioritized) {
+    Cli po(argc, argv);
+    TaglessOption a(&po);
+
+    EXPECT_THROW(a.prioritize(), _detail::PrioritizationOptionMismatch);
 }
 
 TEST_F(ProgramOptionsTest, options_print) {

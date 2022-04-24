@@ -32,7 +32,7 @@ namespace BazPO
         // Any Option Add
         virtual void add(Option& option) = 0;
 
-        virtual void prioritizeOption(const std::string& key) = 0;
+        virtual void prioritize(const std::string& key) = 0;
 
     protected:
 		virtual void setTagless() { m_taglessMode = true; }
@@ -41,7 +41,7 @@ namespace BazPO
 		bool tagless() const { return m_taglessMode; }
 		bool normal() const { return m_normalMode; }
         size_t getNextId() { ++m_taglessOptionNextId; return m_taglessOptionNextId; }
-        size_t getCurrentId() { return m_taglessOptionNextId; }
+        size_t getCurrentId() const { return m_taglessOptionNextId; }
 
 	private: 
 		bool m_taglessMode = false;
@@ -82,6 +82,15 @@ namespace BazPO
             return ret;
         }
     }
+    namespace _detail
+    {
+        class PrioritizationOptionMismatch
+            : public std::exception
+        {
+            const char* err = "Tagless options cannot be prioritized!";
+            const char* what() const noexcept override { return err; };
+        };
+    }
 	class Option
 	{
 	protected:
@@ -115,7 +124,13 @@ namespace BazPO
 		inline int existsCount() const { return ExistsCount; }
 		inline const char* value() const { return Value; }
         inline const std::deque<const char*>& values() const { return Values; }
-        void prioritize() { Prioritized = true; po->prioritizeOption(Parameter); }
+        void prioritize() 
+        {
+            if (ParseType == _detail::OptionParseType::Unidentified)
+                throw _detail::PrioritizationOptionMismatch();
+            Prioritized = true;
+            po->prioritize(Parameter);
+        }
 		template <typename T>
         inline T valueAs() const { return _detail::valueAs<T>(Value); }
 		template <typename T>
@@ -188,7 +203,7 @@ namespace BazPO
         class FunctionExecutor
         {
         public:
-            FunctionExecutor(std::function<void(const Option&)> onExists)
+            explicit FunctionExecutor(std::function<void(const Option&)> onExists)
                 : f(onExists)
             {}
         protected:
@@ -247,7 +262,7 @@ namespace BazPO
 					exit(0);
 				}
 			, "--help", "Prints this help message");
-            prioritizeOption("-h");
+            prioritize("-h");
             setUndefined();
 #endif
 		};
@@ -267,7 +282,15 @@ namespace BazPO
         inline void askInput(const std::string& key) { askInput(m_refMap.at(getKey(key))); }
 		void printOptions();
 		void parse();
-        virtual void prioritizeOption(const std::string& key) override { m_priorityMap.emplace(getKey(key), m_refMap.at(getKey(key))); m_refMap.at(getKey(key)).Prioritized = true; };
+        virtual void prioritize(const std::string& key) final 
+        { 
+            auto mainKey = getKey(key);
+            auto& option = m_refMap.at(mainKey);
+            if (option.ParseType == _detail::OptionParseType::Unidentified)
+                throw _detail::PrioritizationOptionMismatch();
+            m_priorityMap.emplace(mainKey, option);
+            option.Prioritized = true;
+        };
 		inline void changeIO(std::ostream* ostream, std::istream* istream = &std::cin) { m_inputStream = istream; m_outputStream = ostream; }
 		inline void userInputRequired() { m_askInputForMandatoryOptions = true; }
 		inline void unexpectedArgumentsAcceptable() { m_exitOnUnexpectedValue = false; }
@@ -402,12 +425,12 @@ namespace BazPO
                 askUserInput();
                 m_parsed = true;
                 // execute actions
-                for (auto& it : m_refMap)
+                for (const auto& it : m_refMap)
                     if (it.second.Exists)
                         it.second.execute(it.second);
             }
             else 
-                for(auto& it : m_priorityMap)
+                for(const auto& it : m_priorityMap)
                     if (it.second.Exists)
                         it.second.execute(it.second);
         }
