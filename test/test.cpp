@@ -878,6 +878,82 @@ TEST_F(ProgramOptionsTest, tagless_option_with_reference_succesful_2) {
     EXPECT_EQ(std::string("value4"), a.values()[3]);
 }
 
+TEST_F(ProgramOptionsTest, either_mandatory_runs_normally_when_one_mandatory_option_is_provided_cli)
+{
+    int argc = 7;
+    const char* argv[7]{ {"programoptions"}, {"-a"}, {"Aoption"}, {"-a"}, {"Boption"}, {"-a"}, {"Coption"} };
+    Cli po{ argc, argv };
+    po.add("-a", "--alpha", "Option A", "", true);
+    po.add("-b", "--bravo", "Option B", "", true);
+    po.add("-c", "--charlie", "Option C", "", true);
+    po.add("-d", "--delta", "Option D");
+    po.eitherMandatory("-a", "-b", "-c");
+    po.parse();
+
+    auto& a = po.option("-a");
+    auto& b = po.option("-b");
+    auto& c = po.option("-c");
+
+    EXPECT_EQ(true, a.exists());
+    EXPECT_EQ(false, b.exists());
+    EXPECT_EQ(false, c.exists());
+    std::deque<std::string> expected{ "Aoption", "Boption", "Coption" };
+    EXPECT_EQ(expected, a.valuesAs<std::string>());
+
+    EXPECT_EQ(&a, po.whichMandatory("-c"));
+}
+
+TEST_F(ProgramOptionsTest, either_mandatory_runs_normally_when_one_mandatory_option_is_provided_reference)
+{
+    int argc = 7;
+    const char* argv[7]{ {"programoptions"}, {"-a"}, {"Aoption"}, {"-a"}, {"Boption"}, {"-a"}, {"Coption"} };
+    Cli po{ argc, argv };
+    ValueOption optiona(&po, "-a", "--alpha", "Option A", "", true);
+    ValueOption optionb(&po, "-b", "--bravo", "Option B", "", true);
+    ValueOption optionc(&po, "-c", "--charlie", "Option C", "", true);
+    ValueOption optiond(&po, "-d", "--delta", "Option D");
+
+    EitherMandatory eithers(&po, optiona, optionb, optionc);
+
+    po.parse();
+
+    EXPECT_EQ(true, optiona.exists());
+    EXPECT_EQ(false, optionb.exists());
+    EXPECT_EQ(false, optionc.exists());
+    std::deque<std::string> expected{ "Aoption", "Boption", "Coption" };
+    EXPECT_EQ(expected, optiona.valuesAs<std::string>());
+
+    EXPECT_EQ(&optiona, eithers.satisfiedOption());
+}
+
+TEST_F(ProgramOptionsTest, either_mandatory_exits_if_none_of_the_parameters_given)
+{
+    int argc = 3;
+    const char* argv[3]{ {"programoptions"}, {"-c"}, {"Coption"} };
+    Cli po{ argc, argv };
+    ValueOption optiona(&po, "-a", "--alpha", "Option A", "", true);
+    ValueOption optionb(&po, "-b", "--bravo", "Option B", "", true);
+    ValueOption optionc(&po, "-c", "--charlie", "Option C");
+
+    EitherMandatory eithers(&po, optiona, optionb);
+
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+}
+
+TEST_F(ProgramOptionsTest, either_mandatory_exits_if_one_of_the_parameters_given_but_another_mandatory_not)
+{
+    int argc = 7;
+    const char* argv[7]{ {"programoptions"}, {"-a"}, {"Aoption"}, {"-a"}, {"Boption"}, {"-a"}, {"Coption"} };
+    Cli po{ argc, argv };
+    ValueOption optiona(&po, "-a", "--alpha", "Option A", "", true);
+    ValueOption optionb(&po, "-b", "--bravo", "Option B", "", true);
+    ValueOption optionc(&po, "-c", "--charlie", "Option C", "", true);
+
+    EitherMandatory eithers(&po, optiona, optionb);
+
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+}
+
 TEST_F(ProgramOptionsTest, tagless_then_other_mismatch_throws) {
     Cli po(argc, argv);
     po.add();
