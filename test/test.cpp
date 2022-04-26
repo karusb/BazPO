@@ -65,14 +65,15 @@ TEST_F(ProgramOptionsTest, default_value_returned_when_option_doesnt_exist)
 {
     int argc = 1;
     const char* argv[1]{ {"programoptions"}};
+    std::string defaultValue = "my default value";
     Cli po{ argc, argv };
-    po.add("-a", "--alpha", "Option A", "my default value");
+    po.add("-a", "--alpha", "Option A", defaultValue);
     po.parse();
 
     auto& a = po.option("-a");
 
     EXPECT_FALSE(a.exists());
-    EXPECT_EQ(std::string("my default value"), a.value());
+    EXPECT_EQ(defaultValue, a.value());
 }
 
 TEST_F(ProgramOptionsTest, default_value_not_reachable_when_option_exist)
@@ -184,7 +185,7 @@ TEST_F(ProgramOptionsTest, values_returns_correct_contents)
     int argc = 7;
     const char* argv[7]{ {"programoptions"}, {"-a"}, {"Aoption"}, {"-a"}, {"Boption"}, {"-a"}, {"Coption"} };
     Cli po{ argc, argv };
-    po.add("-a", "--alpha", "Option A");
+    po.add("-a", "--alpha", "Option A", "", false, false, 3);
     po.add("-b", "--bravo", "Option B");
     po.add("-c", "--charlie", "Option C");
     po.parse();
@@ -762,7 +763,7 @@ TEST_F(ProgramOptionsTest, tagless_option_with_reference_succesful_2) {
 TEST_F(ProgramOptionsTest, either_mandatory_runs_normally_when_one_mandatory_option_is_provided_cli)
 {
     int argc = 7;
-    const char* argv[7]{ {"programoptions"}, {"-a"}, {"Aoption"}, {"-a"}, {"Boption"}, {"-a"}, {"Coption"} };
+    const char* argv[7]{ {"programoptions"}, {"-c"}, {"Aoption"}, {"-c"}, {"Boption"}, {"-c"}, {"Coption"} };
     Cli po{ argc, argv };
     po.add("-a", "--alpha", "Option A", "", true);
     po.add("-b", "--bravo", "Option B", "", true);
@@ -774,10 +775,10 @@ TEST_F(ProgramOptionsTest, either_mandatory_runs_normally_when_one_mandatory_opt
     po.parse();
 
     EXPECT_FALSE(po.option("-b").exists());
-    EXPECT_FALSE(po.option("-c").exists());
-    ExpectOptionExistsWithValues(po, "-a", { "Aoption", "Boption", "Coption" });
+    EXPECT_FALSE(po.option("-a").exists());
+    ExpectOptionExistsWithValues(po, "-c", { "Aoption", "Boption", "Coption" });
 
-    EXPECT_EQ(&po.option("-a"), po.whichMandatory("-c"));
+    EXPECT_EQ(&po.option("-c"), po.whichMandatory("-c"));
 }
 
 TEST_F(ProgramOptionsTest, either_mandatory_runs_normally_when_one_mandatory_option_is_provided_reference)
@@ -888,6 +889,9 @@ TEST_F(ProgramOptionsTest, tagless_options_print) {
     int argc = 1;
     const char* argv[] = { "programoptions" };
     Cli po(argc, argv);
-    po.add(4, "My values");
+    po.add(1, "First set of values");
+    po.add(2, "Second set of values");
+    po.add(3, "Third set of values");
+    po.add(4, "Fourth set of values");;
     po.printOptions();
 }
