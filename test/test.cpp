@@ -830,6 +830,150 @@ TEST_F(ProgramOptionsTest, either_mandatory_exits_if_one_of_the_parameters_given
     EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
 }
 
+TEST_F(ProgramOptionsTest, constrained_string_values_value)
+{
+    int argc = 7;
+    const char* argv[7]{ {"programoptions"}, {"-a"}, {"Aoption"}, {"-a"}, {"Boption"}, {"-a"}, {"Coption"} };
+    Cli po{ argc, argv };
+    po.add("-a", "--alpha", "Option A", "", true);
+    po.contraint("-a", { "Aoption", "Boption", "Coption" });
+
+    po.parse();
+
+    ExpectOptionExistsWithValues(po.option("-a"), { "Aoption", "Boption", "Coption" });
+}
+
+TEST_F(ProgramOptionsTest, constrained_string_values_tagless)
+{
+    int argc = 4;
+    const char* argv[4]{ {"programoptions"}, {"Aoption"}, {"Boption"}, {"Coption"} };
+    Cli po{ argc, argv };
+
+    StringConstraint constraint(po.add(3), { "Aoption", "Boption", "Coption" });
+
+    po.parse();
+
+    ExpectOptionExistsWithValues(po.option("0"), {"Aoption", "Boption", "Coption"});
+}
+
+TEST_F(ProgramOptionsTest, constrained_string_values_not_found_exits_value)
+{
+    int argc = 7;
+    const char* argv[7]{ {"programoptions"}, {"-a"}, {"Aoption"}, {"-a"}, {"Boption"}, {"-a"}, {"Coption"} };
+    Cli po{ argc, argv };
+    ValueOption optiona(&po, "-a", "--alpha", "Option A", "", true);
+
+    StringConstraint constraint(optiona, { "aoption", "boption", "coption"});
+
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+}
+
+TEST_F(ProgramOptionsTest, constrained_string_values_not_found_exits_tagless)
+{
+    int argc = 4;
+    const char* argv[4]{ {"programoptions"}, {"Aoption"}, {"Boption"}, {"Coption"} };
+    Cli po{ argc, argv };
+    TaglessOption optiona(&po, 3);
+
+    StringConstraint constraint(optiona, { "aoption", "boption", "coption" });
+
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+}
+
+TEST_F(ProgramOptionsTest, constrained_min_max_values_value)
+{
+    int argc = 7;
+    const char* argv[7]{ {"programoptions"}, {"-a"}, {"0.1"}, {"-a"}, {"1.161782354"}, {"-a"}, {"1.941287457"} };
+    Cli po{ argc, argv };
+    po.add("-a", "--alpha", "Option A", "", true);
+    po.constraint<double>("-a", { 0.00001, 1.95 });
+
+    po.parse();
+
+    ExpectOptionExistsWithValues(po.option("-a"), {"0.1", "1.161782354", "1.941287457"});
+}
+
+TEST_F(ProgramOptionsTest, constrained_min_max_values_tagless)
+{
+    int argc = 4;
+    const char* argv[4]{ {"programoptions"}, {"0.1"}, {"1.161782354"}, {"1.941287457"} };
+    Cli po{ argc, argv };
+    TaglessOption optiona(&po, 3);
+
+    MinMaxConstraint<double> constraint(optiona, { 0.00001, 1.95 });
+    po.parse();
+
+    ExpectOptionExistsWithValues(optiona, { "0.1", "1.161782354", "1.941287457" });
+}
+
+TEST_F(ProgramOptionsTest, constrained_min_max_values_exits_on_invalid_conversion)
+{
+    int argc = 3;
+    const char* argv[3]{ {"programoptions"}, {"-a"}, {"Aoption"}};
+    Cli po{ argc, argv };
+    ValueOption optiona(&po, "-a", "--alpha", "Option A", "", true);
+
+    MinMaxConstraint<double> constraint(optiona, { 0.00001, 1.95 });
+
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+}
+
+TEST_F(ProgramOptionsTest, constrained_under_min_value_exits)
+{
+    int argc = 3;
+    const char* argv[3]{ {"programoptions"}, {"-a"}, {"0"} };
+    Cli po{ argc, argv };
+    ValueOption optiona(&po, "-a", "--alpha", "Option A", "", true);
+
+    MinMaxConstraint<double> constraint(optiona, { 0.000011, 1 });
+
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+}
+
+TEST_F(ProgramOptionsTest, constrained_under_max_value_exits)
+{
+    int argc = 3;
+    const char* argv[3]{ {"programoptions"}, {"-a"}, {"1.00000001"}};
+    Cli po{ argc, argv };
+    ValueOption optiona(&po, "-a", "--alpha", "Option A", "", true);
+
+    MinMaxConstraint<double> constraint(optiona, { 0.000011, 1 });
+
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+}
+
+TEST_F(ProgramOptionsTest, custom_constraint_exits)
+{
+    class CustomConstraint
+        : public _detail::Constraint
+    {
+    public:
+        CustomConstraint(Option& option)
+            : _detail::Constraint(option)
+        {}
+
+        virtual bool satisfied() const override
+        {
+            if (isupper(option.value()[0]))
+                return true;
+            return false;
+        };
+        virtual std::string what() const override
+        {
+            return "value to start with a capital letter ";
+        };
+    };
+    int argc = 3;
+    const char* argv[3]{ {"programoptions"}, {"-a"}, {"aoption"} };
+    Cli po{ argc, argv };
+    ValueOption optiona(&po, "-a", "--alpha", "Option A", "", true);
+
+    CustomConstraint constraintB(po.add("-b", "--bravo", "Option B"));
+    CustomConstraint constraint(optiona);
+
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+}
+
 TEST_F(ProgramOptionsTest, tagless_then_other_mismatch_throws) {
     Cli po(argc, argv);
     po.add();
