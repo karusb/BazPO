@@ -336,6 +336,21 @@ TEST_F(ProgramOptionsTest, program_works_when_unknown_arguments_are_given_with_l
     EXPECT_EQ(1, a.existsCount());
 }
 
+TEST_F(ProgramOptionsTest, option_prioritized_after_adding_works)
+{
+    Cli po{ argc, argv };
+    auto& a = po.add("-a");
+    auto& b = po.add("-b");
+    auto& c = po.add("-c").prioritize();
+
+    po.parse();
+
+    ExpectOptionExistsWithValues(c, { "-d" });
+    EXPECT_EQ(1, c.existsCount());
+    EXPECT_FALSE(a.exists());
+    EXPECT_FALSE(b.exists());
+}
+
 TEST_F(ProgramOptionsTest, prioritized_option_is_defined_and_provided_different_args_not_parsed_cli)
 {
     Cli po{ argc, argv };
@@ -836,7 +851,7 @@ TEST_F(ProgramOptionsTest, constrained_string_values_value)
     const char* argv[7]{ {"programoptions"}, {"-a"}, {"Aoption"}, {"-a"}, {"Boption"}, {"-a"}, {"Coption"} };
     Cli po{ argc, argv };
     po.add("-a", "--alpha", "Option A", "", true);
-    po.contraint("-a", { "Aoption", "Boption", "Coption" });
+    po.constraint("-a", { "Aoption", "Boption", "Coption" });
 
     po.parse();
 
@@ -972,6 +987,30 @@ TEST_F(ProgramOptionsTest, custom_constraint_exits)
     CustomConstraint constraint(optiona);
 
     EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+}
+
+TEST_F(ProgramOptionsTest, conversion_error_exits_automatically_with_constraint)
+{
+    int argc = 3;
+    const char* argv[3]{ {"programoptions"}, {"-a"}, {"abcd"} };
+    Cli po{ argc, argv };
+    ValueOption optiona(&po, "-a", "--alpha", "Option A", "", true);
+
+    MinMaxConstraint<double> constraint(optiona, { 0.000011, 1 });
+
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+}
+
+TEST_F(ProgramOptionsTest, conversion_error_exits_when_value_is_converted)
+{
+    int argc = 3;
+    const char* argv[3]{ {"programoptions"}, {"-a"}, {"abcd"} };
+    Cli po{ argc, argv };
+    ValueOption optiona(&po, "-a", "--alpha", "Option A", "", true);
+    po.parse();
+
+    EXPECT_EXIT(optiona.valueAs<double>(), testing::ExitedWithCode(1), "");
+    EXPECT_EXIT(optiona.valuesAs<double>(), testing::ExitedWithCode(1), "");
 }
 
 TEST_F(ProgramOptionsTest, tagless_then_other_mismatch_throws) {
