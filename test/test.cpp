@@ -831,6 +831,20 @@ TEST_F(ProgramOptionsTest, either_mandatory_exits_if_none_of_the_parameters_give
     EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
 }
 
+TEST_F(ProgramOptionsTest, either_mandatory_exits_if_all_of_the_parameters_given)
+{
+    int argc = 7;
+    const char* argv[7]{ {"programoptions"}, {"-a"}, {"val"}, {"-b"}, {"val"}, {"-c"}, {"val"} };
+    Cli po{ argc, argv };
+    ValueOption optiona(&po, "-a", "--alpha", "Option A");
+    ValueOption optionb(&po, "-b", "--bravo", "Option B");
+    ValueOption optionc(&po, "-c", "--charlie", "Option C");
+
+    EitherMandatory eithers(&po, optiona, optionb, optionc);
+
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+}
+
 TEST_F(ProgramOptionsTest, either_mandatory_exits_if_one_of_the_parameters_given_but_another_mandatory_not)
 {
     int argc = 7;
@@ -960,11 +974,11 @@ TEST_F(ProgramOptionsTest, constrained_under_max_value_exits)
 TEST_F(ProgramOptionsTest, custom_constraint_exits)
 {
     class CustomConstraint
-        : public _detail::Constraint
+        : public Constraint
     {
     public:
         CustomConstraint(Option& option)
-            : _detail::Constraint(option)
+            : Constraint(option)
         {}
 
         virtual bool satisfied() const override
@@ -985,6 +999,22 @@ TEST_F(ProgramOptionsTest, custom_constraint_exits)
 
     CustomConstraint constraintB(po.add("-b", "--bravo", "Option B"));
     CustomConstraint constraint(optiona);
+
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+}
+
+TEST_F(ProgramOptionsTest, function_constraint_exits)
+{
+    int argc = 5;
+    const char* argv[5]{ {"programoptions"}, {"-a"}, {"abcd"}, {"ab"}, {"abc"} };
+    Cli po{ argc, argv };
+    MultiOption optiona(&po, "-a", "--alpha", "Option A");
+
+    FunctionConstraint constraint(optiona, [](const Option& option) -> bool {
+        if ("abc" != option.valueAs<std::string>())
+            return false;
+        return true;
+        }, "value must be abc");
 
     EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
 }

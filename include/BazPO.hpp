@@ -1,6 +1,12 @@
 #ifndef BAZ_PO_HPP
 #define BAZ_PO_HPP
 
+/* BazPO is a flexible C++14 single header program argument parsing library. 
+Copyright (c) 2022 Baris Tanyeri
+https://github.com/karusb/BazPO
+LICENSE: MIT
+*/
+
 #include <string>
 #include <map>
 #include <memory>
@@ -14,7 +20,8 @@ namespace BazPO
 {
 	class Option;
     class EitherMandatory;
-
+    // TODO: CMake only header install
+    // TODO: Make EitherMandatory more generic like MultiOptionConstraint, with EitherMandatory descendant
 	class ICli
 	{
 	public:
@@ -107,24 +114,28 @@ namespace BazPO
             const char* err = "Tagless options cannot be prioritized!";
             const char* what() const noexcept override { return err; };
         };
-
-        class Constraint
-        {
-        public:
-            explicit Constraint(Option& option)
-                : option(option)
-            { constrained(); }
-
-            Constraint(const Constraint&) = delete;
-            virtual ~Constraint() = default;
-
-            virtual bool satisfied() const = 0;
-            virtual std::string what() const = 0;
-        protected:
-            void constrained();
-            Option& option;
-        };
     }
+
+    class Constraint
+    {
+    protected:
+        explicit Constraint(Option& option)
+            : option(option)
+        {
+            constrained();
+        }
+    public:
+        Constraint() = delete;
+        Constraint(const Constraint&) = delete;
+        virtual ~Constraint() = default;
+
+        virtual bool satisfied() const = 0;
+        virtual std::string what() const = 0;
+    protected:
+        void constrained();
+        Option& option;
+    };
+
 	class Option
 	{
 	protected:
@@ -201,25 +212,24 @@ namespace BazPO
         int ExistsCount = 0;
 		bool Mandatory = false;
         bool Prioritized = false;
-        _detail::Constraint* Constrained = nullptr;
+        Constraint* Constrained = nullptr;
         ICli* po;
         friend class Cli;
-        friend class _detail::Constraint;
+        friend class Constraint;
 
         const char* Value = "";
         std::deque<const char*> Values;
         size_t MaxValueCount = 1;
 	};
-    namespace _detail
-    {
-        void Constraint::constrained() { option.Constrained = this; }
-    }
+
+    void Constraint::constrained() { option.Constrained = this; }
+
     class StringConstraint
-        : public _detail::Constraint
+        : public Constraint
     {
     public:
         StringConstraint(Option& option, const std::deque<std::string>& stringConstraints) 
-            : _detail::Constraint(option)
+            : Constraint(option)
             , constraints(stringConstraints)
         {}
 
@@ -241,20 +251,42 @@ namespace BazPO
     private:
         std::deque<std::string> constraints;
     };
+    class FunctionConstraint
+        : public Constraint
+    {
+    public:
+        FunctionConstraint(Option& option, const std::function<bool(const Option&)>& isSatisfied, const std::string& errorMessage)
+            : Constraint(option)
+            , isSatisfied(isSatisfied)
+            , errorMessage(errorMessage)
+        {}
+
+        virtual bool satisfied() const override
+        {
+            return isSatisfied(option);
+        };
+        virtual std::string what() const override
+        {
+            return errorMessage;
+        };
+    private:
+        std::function<bool(const Option&)> isSatisfied;
+        std::string errorMessage;
+    };
     template <typename T>
     class MinMaxConstraint
-        : public _detail::Constraint
+        : public Constraint
     {
     public:
         MinMaxConstraint(Option& option, const std::pair<T, T>& minMaxConstraint)
-            : _detail::Constraint(option)
+            : Constraint(option)
             , constraint(minMaxConstraint)
         {}
 
         virtual bool satisfied() const override
         {
             T val = option.valueAs<T>();
-            if (val > constraint.first && val < constraint.second)
+            if (val >= constraint.first && val <= constraint.second)
                 return true;
             return false;
         };
@@ -453,7 +485,7 @@ namespace BazPO
 		std::deque<std::shared_ptr<Option>> m_optionStorage;
         std::deque<EitherMandatory> m_eitherMandatoryStorage;
         std::deque<EitherMandatory*> m_eitherMandatory;
-        std::deque<std::shared_ptr<_detail::Constraint>> m_constraintStorage;
+        std::deque<std::shared_ptr<Constraint>> m_constraintStorage;
 		std::map<std::string, Option&> m_refMap;
 		std::map<std::string, Option&> m_priorityMap;
 		std::map<std::string, std::string> m_aliasMap;
@@ -470,9 +502,16 @@ namespace BazPO
     void Cli::setEitherMandatorySatisfied(Option& option) const
     {
         for (auto& relation : m_eitherMandatory)
+        {
             for (auto& relatedOption : relation->eitherMandatories)
-                if (relatedOption == &option)
+            {
+                if (relation->satisfied == nullptr && relatedOption == &option)
+                {
                     relation->satisfied = relatedOption;
+                    return;
+                }
+            }
+        }
     }
 
     Option& Cli::add(const std::string& option, const std::string& secondOption, const std::string& description, const std::string& defaultValue, bool multipleOptions, size_t maxValueCount)
@@ -824,4 +863,28 @@ namespace BazPO
             throw e;
     }
 }
+
+/*
+MIT License
+
+Copyright (c) 2022 Baris Tanyeri
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
 #endif
