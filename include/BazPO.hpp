@@ -1,10 +1,31 @@
 #ifndef BAZ_PO_HPP
 #define BAZ_PO_HPP
 
-/* BazPO is a flexible C++14 single header program argument parsing library. 
+/* 
+BazPO is a flexible C++14 single header program argument parsing library. 
 Copyright (c) 2022 Baris Tanyeri
 https://github.com/karusb/BazPO
-LICENSE: MIT
+MIT License
+
+Copyright (c) 2022 Baris Tanyeri
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 */
 
 #include <string>
@@ -19,9 +40,8 @@ LICENSE: MIT
 namespace BazPO
 {
 	class Option;
-    class EitherMandatory;
-    // TODO: CMake only header install
-    // TODO: Make EitherMandatory more generic like MultiOptionConstraint, with EitherMandatory descendant
+    class MultiConstraint;
+
 	class ICli
 	{
 	public:
@@ -45,11 +65,13 @@ namespace BazPO
         virtual Option& mandatory(const std::string& key) = 0;
 
     protected:
-        // Make options either mandatory
-        virtual void eitherMandatory(EitherMandatory& eitherMandatory) = 0;
         // Program exit
         virtual void exitWithCode(int code) = 0;
+        virtual void printOptionUsage(const Option& option) = 0;
+        virtual void printOption(const Option& option) = 0;
+        virtual std::string parameterSyntax(const std::string& value, bool mandatory) const = 0;
         virtual void conversionError(const std::string& value) = 0;
+
 		virtual void setTagless() { m_taglessMode = true; }
 		virtual void setNormal() { m_normalMode = true; }
 		void setUndefined() { m_normalMode = false; m_taglessMode = false; }
@@ -65,7 +87,7 @@ namespace BazPO
         size_t m_taglessOptionNextId = -1;
 
         friend class Option;
-        friend class EitherMandatory;
+        friend class MultiConstraint;
 	};
 
     namespace _detail
@@ -178,7 +200,7 @@ namespace BazPO
             return *this;
         }
         Option& withMaxValueCount(size_t count) { MaxValueCount = count; return *this; }
-        Option& mandatory() { Mandatory = true; return *this; }
+        Option& mandatory() { Mandatory = !Mandatory; return *this; }
 		template <typename T>
         inline T valueAs() const 
         { 
@@ -213,9 +235,11 @@ namespace BazPO
 		bool Mandatory = false;
         bool Prioritized = false;
         Constraint* Constrained = nullptr;
+        MultiConstraint* MultiConstrained = nullptr;
         ICli* po;
         friend class Cli;
         friend class Constraint;
+        friend class MultiConstraint;
 
         const char* Value = "";
         std::deque<const char*> Values;
@@ -302,26 +326,100 @@ namespace BazPO
         std::pair<T, T> constraint;
     };
 
+    class MultiConstraint
+    {
+    public:
+        MultiConstraint() = delete;
+        MultiConstraint(const MultiConstraint&) = delete;
+        virtual ~MultiConstraint() = default;
+
+    protected:
+        template <typename... Options>
+        explicit MultiConstraint(ICli* po, Option& option1, Option& option2, Options&... rest)
+            : cli(po)
+        { addOptions(option1, option2, rest...); }
+
+        virtual std::deque<Option*> satisfiedOptions() 
+        { 
+            std::deque<Option*> ret;
+            for (auto& pair : relativeOptions)
+                if (pair.second)
+                    ret.push_back(pair.first);
+            return ret;
+        }
+
+        virtual bool satisfied(Option& foundOption) = 0;
+        virtual std::string what() = 0;
+
+        std::string parameterSyntax(Option& option) { return cli->parameterSyntax(option.Parameter, option.Mandatory); }
+
+        std::deque<std::pair<Option*, bool>> relativeOptions;
+        ICli* cli = nullptr;
+    private:
+        void addOptions(Option& option1) { option1.MultiConstrained = this; relativeOptions.emplace_back(&option1, false); }
+        template <typename... Options>
+        void addOptions(Option& option1, Options&... rest) { addOptions(option1); addOptions(rest...); }
+
+        friend class Cli;
+    };
+
     class EitherMandatory
+        : public MultiConstraint
     {
     public:
         template <typename... Options>
         explicit EitherMandatory(ICli* po, Option& option1, Option& option2, Options&... rest)
+            : MultiConstraint(po, option1, option2, rest...)
+        { makeMandatory(option1, option2, rest...); }
+
+        Option* satisfiedOption() const { return chosenOption; }
+    protected:
+        virtual bool satisfied(Option& foundOption) override
         {
-            addOptions(option1, option2, rest...);
-            if (po != nullptr)
-                po->eitherMandatory(*this);
+            auto totalExist = 0;
+            for (auto& option : relativeOptions)
+            {
+                totalExist+= option.first->exists();
+                if (totalExist > 1)
+                    return false;
+                else if (option.first == &foundOption && chosenOption == nullptr)
+                {
+                    option.second = true;
+                    chosenOption = option.first;
+                    setRelativesNotMandatory();
+                }
+            }
+            if (chosenOption != nullptr)
+                return true;
+            else
+                return false;
         }
-        Option* satisfiedOption() const { return satisfied; }
+
+        virtual std::string what() override
+        {
+            std::string msg;
+            msg.append("Only one of the ");
+            for (auto& option : relativeOptions)
+            {
+                msg.append(parameterSyntax(*option.first));
+                msg.append(", ");
+            }
+            msg.append(" parameters can be provided");
+            return msg;
+        }
+
 
     private:
-        void addOptions(Option& option1) { eitherMandatories.push_back(&option1); }
+        void makeMandatory(Option& option1) { option1.mandatory(); }
         template <typename... Options>
-        void addOptions(Option& option1, Options&... rest) { eitherMandatories.push_back(&option1); addOptions(rest...); }
+        void makeMandatory(Option& option1, Options&... rest) { makeMandatory(option1); makeMandatory(rest...); }
+        void setRelativesNotMandatory() 
+        { 
+            for (auto& option : relativeOptions)
+                option.first->mandatory();
+        }
 
-        Option* satisfied = nullptr;
-        std::deque<Option*> eitherMandatories;
-        friend class Cli;
+        Option* chosenOption = nullptr;
     };
 
 	class ValueOption
@@ -448,31 +546,29 @@ namespace BazPO
 		inline void userInputRequired() { m_askInputForMandatoryOptions = true; }
 		inline void unexpectedArgumentsAcceptable() { m_exitOnUnexpectedValue = false; }
         template<typename... Options>
-        void eitherMandatory(Options&... options) { m_eitherMandatoryStorage.emplace_back(this, m_refMap.at(getKey(options))...); }
-        Option* whichMandatory(const std::string& key);
+        EitherMandatory& eitherMandatory(Options&... options) { m_multiConstraintStorage.push_back(std::make_shared<EitherMandatory>(this, m_refMap.at(getKey(options))...)); return reinterpret_cast<EitherMandatory&>(*m_multiConstraintStorage.back()); }
         void constraint(const std::string& key, std::deque<std::string> stringConstraints){ m_constraintStorage.push_back(std::make_shared<StringConstraint>(m_refMap.at(getKey(key)), stringConstraints)); };
         template<typename T>
         void constraint(const std::string& key, std::pair<T, T> minMaxConstraints) { m_constraintStorage.push_back(std::make_shared<MinMaxConstraint<T>>(m_refMap.at(getKey(key)), minMaxConstraints)); };
 
 	private:
-        virtual void eitherMandatory(EitherMandatory& eitherMandatory) override { m_eitherMandatory.push_back(&eitherMandatory); };
         virtual void conversionError(const std::string& value) override;
         virtual void exitWithCode(int code) override { printOptions(); exit(code); };
+        virtual void printOptionUsage(const Option& option) override;
+        virtual void printOption(const Option& option) override;
+        virtual std::string parameterSyntax(const std::string& value, bool mandatory) const override;
+
 		void parsePriority();
 		void parseNormal();
 		void parseTagless();
-        void setEitherMandatorySatisfied(Option& option) const;
 		void checkMandatoryOptions();
-        void checkEitherMandatories();
 		inline std::string getKey(const std::string& option) const { return (m_aliasMap.find(option) != m_aliasMap.end()) ? m_aliasMap.at(option) : option; }
 		void registerOptionSizes(size_t optionSize, size_t secondOptionSize, size_t descriptionSize);
 		void registerAlias(const std::string& option, const std::string& secondOption);
 		void multiArgParseError(const std::string& key, const std::string& value);
         void unknownArgParsingError(const std::string& value);
         void constraintError(const std::string& constraints, const std::string& value);
-		void printOptionUsage(const Option& option);
-		void printOption(const Option& option);
-		std::string parameterSyntax(const std::string& value, bool mandatory) const;
+        void multiConstraintError(const std::string& message);
         void throwOnMismatch(bool tagless) const;
 
 		size_t m_maxOptionParameterSize = 0;
@@ -483,9 +579,8 @@ namespace BazPO
 		const char* m_programDescription;
 
 		std::deque<std::shared_ptr<Option>> m_optionStorage;
-        std::deque<EitherMandatory> m_eitherMandatoryStorage;
-        std::deque<EitherMandatory*> m_eitherMandatory;
         std::deque<std::shared_ptr<Constraint>> m_constraintStorage;
+        std::deque<std::shared_ptr<MultiConstraint>> m_multiConstraintStorage;
 		std::map<std::string, Option&> m_refMap;
 		std::map<std::string, Option&> m_priorityMap;
 		std::map<std::string, std::string> m_aliasMap;
@@ -498,21 +593,6 @@ namespace BazPO
 		std::istream* m_inputStream = &std::cin;
 		std::ostream* m_outputStream = &std::cout;
 	};
-
-    void Cli::setEitherMandatorySatisfied(Option& option) const
-    {
-        for (auto& relation : m_eitherMandatory)
-        {
-            for (auto& relatedOption : relation->eitherMandatories)
-            {
-                if (relation->satisfied == nullptr && relatedOption == &option)
-                {
-                    relation->satisfied = relatedOption;
-                    return;
-                }
-            }
-        }
-    }
 
     Option& Cli::add(const std::string& option, const std::string& secondOption, const std::string& description, const std::string& defaultValue, bool multipleOptions, size_t maxValueCount)
     {
@@ -595,8 +675,10 @@ namespace BazPO
             else
                 parseNormal();
 
-            checkEitherMandatories();
             checkMandatoryOptions();
+            for (const auto& it : m_refMap)
+                if (it.second.MultiConstrained != nullptr && !it.second.MultiConstrained->satisfied(it.second))
+                    multiConstraintError(it.second.MultiConstrained->what());
             m_parsed = true;
 
             for (const auto& it : m_refMap)
@@ -658,6 +740,8 @@ namespace BazPO
                     it.second.setValue(m_argv[cursor]);
                     if (it.second.Constrained != nullptr && !it.second.Constrained->satisfied())
                         constraintError(it.second.Constrained->what(), it.second.value());
+                    if (it.second.MultiConstrained != nullptr && !it.second.MultiConstrained->satisfied(it.second))
+                        multiConstraintError(it.second.MultiConstrained->what());
                 }
         }
         if(cursor < m_argc && m_exitOnUnexpectedValue)
@@ -675,7 +759,6 @@ namespace BazPO
             {
                 option->second.Exists = true;
                 ++option->second.ExistsCount;
-                setEitherMandatorySatisfied(option->second);
                 lastOption = &option->second;
             }
             else if (lastOption != nullptr)
@@ -686,33 +769,13 @@ namespace BazPO
                     multiArgParseError(lastOption->Parameter, m_argv[i]);
                 if (lastOption->Constrained != nullptr && !lastOption->Constrained->satisfied())
                     constraintError(lastOption->Constrained->what(), lastOption->value());
+                if (lastOption->MultiConstrained != nullptr && !lastOption->MultiConstrained->satisfied(*lastOption))
+                    multiConstraintError(lastOption->MultiConstrained->what());
                 if (lastOption->ParseType == _detail::OptionParseType::Value)
                     lastOption = nullptr;
             }
             else if(m_exitOnUnexpectedValue)
                 unknownArgParsingError(m_argv[i]);
-        }
-    }
-
-    void Cli::checkEitherMandatories()
-    {
-        for (auto& eitherMandatory : m_eitherMandatory)
-        {
-            if (eitherMandatory->satisfied != nullptr)
-                for (auto& others : eitherMandatory->eitherMandatories)
-                    others->Mandatory = false;
-            else if (m_exitOnUnexpectedValue)
-            {
-                *m_outputStream << "Either one of the ";
-                for (auto unsatisfiedOptions : eitherMandatory->eitherMandatories)
-                {
-                    printOptionUsage(*unsatisfiedOptions);
-                    *m_outputStream << ", ";
-                }
-                *m_outputStream << " parameters are required" << std::endl;
-
-                exitWithCode(1);
-            }
         }
     }
 
@@ -742,19 +805,6 @@ namespace BazPO
         m_inputStorage.emplace_back(temp);
         option.setValue(m_inputStorage.back().c_str());
         option.Exists = true;
-    }
-
-    Option* Cli::whichMandatory(const std::string& key) 
-    {
-        auto mainKey = getKey(key);
-        for (auto& eitherMandatory : m_eitherMandatory)
-        {
-            if (eitherMandatory->satisfied != nullptr)
-                for (auto& others : eitherMandatory->eitherMandatories)
-                    if (others->Parameter == mainKey)
-                        return eitherMandatory->satisfied;
-        }
-        return nullptr;
     }
 
     void Cli::printOptions()
@@ -799,6 +849,12 @@ namespace BazPO
     void Cli::constraintError(const std::string& constraints, const std::string& value)
     {
         *m_outputStream << "Expected " << constraints << " where -> '" << value << "' is not expected";
+        exitWithCode(1);
+    }
+
+    void Cli::multiConstraintError(const std::string& message)
+    {
+        *m_outputStream << message << std::endl;
         exitWithCode(1);
     }
 
@@ -864,27 +920,4 @@ namespace BazPO
     }
 }
 
-/*
-MIT License
-
-Copyright (c) 2022 Baris Tanyeri
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-*/
 #endif

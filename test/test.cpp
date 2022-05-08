@@ -785,7 +785,7 @@ TEST_F(ProgramOptionsTest, either_mandatory_runs_normally_when_one_mandatory_opt
     po.add("-c", "--charlie", "Option C");
     po.add("-d", "--delta", "Option D");
 
-    po.eitherMandatory("-a", "-b", "-c");
+    auto& eithers = po.eitherMandatory("-a", "-b", "-c");
 
     po.parse();
 
@@ -793,7 +793,7 @@ TEST_F(ProgramOptionsTest, either_mandatory_runs_normally_when_one_mandatory_opt
     EXPECT_FALSE(po.option("-a").exists());
     ExpectOptionExistsWithValues(po, "-c", { "Aoption", "Boption", "Coption" });
 
-    EXPECT_EQ(&po.option("-c"), po.whichMandatory("-c"));
+    EXPECT_EQ(&po.option("-c"), eithers.satisfiedOption());
 }
 
 TEST_F(ProgramOptionsTest, either_mandatory_runs_normally_when_one_mandatory_option_is_provided_reference)
