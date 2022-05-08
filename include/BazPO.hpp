@@ -224,7 +224,7 @@ namespace BazPO
         size_t maxValueCount() const { return MaxValueCount; }
 
     private:
-        void setCli(ICli& po) { this->po = &po; }
+        void setCli(ICli& cli) { po = &cli; }
 
 		std::string Parameter;
 		std::string SecondParameter;
@@ -351,7 +351,7 @@ namespace BazPO
         virtual bool satisfied(Option& foundOption) = 0;
         virtual std::string what() = 0;
 
-        std::string parameterSyntax(Option& option) { return cli->parameterSyntax(option.Parameter, option.Mandatory); }
+        std::string parameterSyntax(const Option& option) const { return cli->parameterSyntax(option.Parameter, option.Mandatory); }
 
         std::deque<std::pair<Option*, bool>> relativeOptions;
         ICli* cli = nullptr;
@@ -410,9 +410,9 @@ namespace BazPO
 
 
     private:
-        void makeMandatory(Option& option1) { option1.mandatory(); }
+        void makeMandatory(Option& option1) const { option1.mandatory(); }
         template <typename... Options>
-        void makeMandatory(Option& option1, Options&... rest) { makeMandatory(option1); makeMandatory(rest...); }
+        void makeMandatory(Option& option1, Options&... rest) const { makeMandatory(option1); makeMandatory(rest...); }
         void setRelativesNotMandatory() 
         { 
             for (auto& option : relativeOptions)

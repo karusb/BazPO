@@ -1105,6 +1105,6 @@ TEST_F(ProgramOptionsTest, tagless_options_print) {
     po.add(1, "First set of values").mandatory();
     po.add(2, "Second set of values");
     po.add(3, "Third set of values");
-    po.add(4, "Fourth set of values");;
+    po.add(4, "Fourth set of values");
     po.printOptions();
 }
