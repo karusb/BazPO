@@ -861,15 +861,17 @@ TEST_F(ProgramOptionsTest, either_mandatory_exits_if_one_of_the_parameters_given
 
 TEST_F(ProgramOptionsTest, constrained_string_values_value)
 {
-    int argc = 7;
-    const char* argv[7]{ {"programoptions"}, {"-a"}, {"Aoption"}, {"-a"}, {"Boption"}, {"-a"}, {"Coption"} };
+    int argc = 9;
+    const char* argv[9]{ {"programoptions"}, {"-a"}, {"Aoption"}, {"-a"}, {"Boption"}, {"-a"}, {"Coption"}, {"-b"}, {"Boption"} };
     Cli po{ argc, argv };
     po.add("-a", "--alpha", "Option A");
+    auto& b = po.add("-b").constrain({ "Boption" });
     po.constraint("-a", { "Aoption", "Boption", "Coption" });
 
     po.parse();
 
     ExpectOptionExistsWithValues(po.option("-a"), { "Aoption", "Boption", "Coption" });
+    ExpectOptionExistsWithValues(b, {"Boption"});
 }
 
 TEST_F(ProgramOptionsTest, constrained_string_values_tagless)
@@ -911,15 +913,17 @@ TEST_F(ProgramOptionsTest, constrained_string_values_not_found_exits_tagless)
 
 TEST_F(ProgramOptionsTest, constrained_min_max_values_value)
 {
-    int argc = 7;
-    const char* argv[7]{ {"programoptions"}, {"-a"}, {"0.1"}, {"-a"}, {"1.161782354"}, {"-a"}, {"1.941287457"} };
+    int argc = 9;
+    const char* argv[9]{ {"programoptions"}, {"-a"}, {"0.1"}, {"-a"}, {"1.161782354"}, {"-a"}, {"1.941287457"} ,{"-b"}, {"1.941287457"} };
     Cli po{ argc, argv };
     po.add("-a", "--alpha", "Option A");
+    auto& b = po.add("-b").constrain<double>({ 0.00001, 1.95 });
     po.constraint<double>("-a", { 0.00001, 1.95 });
 
     po.parse();
 
     ExpectOptionExistsWithValues(po.option("-a"), {"0.1", "1.161782354", "1.941287457"});
+    ExpectOptionExistsWithValues(b, {"1.941287457"});
 }
 
 TEST_F(ProgramOptionsTest, constrained_min_max_values_tagless)
@@ -1105,6 +1109,6 @@ TEST_F(ProgramOptionsTest, tagless_options_print) {
     po.add(1, "First set of values").mandatory();
     po.add(2, "Second set of values");
     po.add(3, "Third set of values");
-    po.add(4, "Fourth set of values");
+    po.add(4, "Fourth set of values").withMaxValueCount(SIZE_MAX);
     po.printOptions();
 }

@@ -40,6 +40,7 @@ SOFTWARE.
 namespace BazPO
 {
 	class Option;
+    class Constraint;
     class MultiConstraint;
 
 	class ICli
@@ -70,7 +71,7 @@ namespace BazPO
         virtual void printOptionUsage(const Option& option) = 0;
         virtual void printOption(const Option& option) = 0;
         virtual std::string parameterSyntax(const std::string& value, bool mandatory) const = 0;
-        virtual void conversionError(const std::string& value) = 0;
+        virtual void conversionError(const std::string& value, const std::string& parameter) = 0;
 
 		virtual void setTagless() { m_taglessMode = true; }
 		virtual void setNormal() { m_normalMode = true; }
@@ -138,26 +139,6 @@ namespace BazPO
         };
     }
 
-    class Constraint
-    {
-    protected:
-        explicit Constraint(Option& option)
-            : option(option)
-        {
-            constrained();
-        }
-    public:
-        Constraint() = delete;
-        Constraint(const Constraint&) = delete;
-        virtual ~Constraint() = default;
-
-        virtual bool satisfied() const = 0;
-        virtual std::string what() const = 0;
-    protected:
-        void constrained();
-        Option& option;
-    };
-
 	class Option
 	{
 	protected:
@@ -201,12 +182,16 @@ namespace BazPO
         }
         Option& withMaxValueCount(size_t count) { MaxValueCount = count; return *this; }
         Option& mandatory() { Mandatory = !Mandatory; return *this; }
+        Option& constrain(std::deque<std::string> stringConstraints);
+        template<typename T>
+        Option& constrain(std::pair<T, T> minMaxConstraints);
+        Option& constrain(Constraint& contraint) { Constrained = &contraint; return *this; };
 		template <typename T>
         inline T valueAs() const 
         { 
             auto valPair = _detail::valueAs<T>(Value);
             if (valPair.second)
-                po->conversionError(Value);
+                po->conversionError(Value, Parameter);
             return valPair.first;
         }
 		template <typename T>
@@ -214,7 +199,7 @@ namespace BazPO
         { 
             auto valPair = _detail::valuesAs<T>(Values);
             if (valPair.second)
-                po->conversionError(Values[valPair.first.size() - 1]);
+                po->conversionError(Values[valPair.first.size() - 1], Parameter);
             return valPair.first;
         }
 
@@ -246,7 +231,24 @@ namespace BazPO
         size_t MaxValueCount = 1;
 	};
 
-    void Constraint::constrained() { option.Constrained = this; }
+    class Constraint
+    {
+    protected:
+        explicit Constraint(Option& option)
+            : option(option)
+        {
+            option.constrain(*this);
+        }
+    public:
+        Constraint() = delete;
+        Constraint(const Constraint&) = delete;
+        virtual ~Constraint() = default;
+
+        virtual bool satisfied() const = 0;
+        virtual std::string what() const = 0;
+    protected:
+        Option& option;
+    };
 
     class StringConstraint
         : public Constraint
@@ -362,6 +364,10 @@ namespace BazPO
 
         friend class Cli;
     };
+
+    Option& Option::constrain(std::deque<std::string> stringConstraints) { Constrained = std::make_shared<StringConstraint>(*this, stringConstraints).get(); return *this; };
+    template<typename T>
+    Option& Option::constrain(std::pair<T, T> minMaxConstraints) { Constrained = std::make_shared<MinMaxConstraint<T>>(*this, minMaxConstraints).get(); return *this; };
 
     class EitherMandatory
         : public MultiConstraint
@@ -506,12 +512,7 @@ namespace BazPO
 			, m_programDescription(programDescription)
 		{
 #ifndef BazPO_DISABLE_AUTO_HELP_MESSAGE
-			add("-h", [this](const Option&)
-				{
-					printOptions();
-					exitWithCode(0);
-				}
-			, "--help", "Prints this help message").prioritize();
+            add("-h", [this](const Option&) {exitWithCode(0); }, "--help", "Prints this help message").prioritize();
             setUndefined();
 #endif
 		};
@@ -552,11 +553,12 @@ namespace BazPO
         void constraint(const std::string& key, std::pair<T, T> minMaxConstraints) { m_constraintStorage.push_back(std::make_shared<MinMaxConstraint<T>>(m_refMap.at(getKey(key)), minMaxConstraints)); };
 
 	private:
-        virtual void conversionError(const std::string& value) override;
+        virtual void conversionError(const std::string& value, const std::string& parameter) override;
         virtual void exitWithCode(int code) override { printOptions(); exit(code); };
         virtual void printOptionUsage(const Option& option) override;
         virtual void printOption(const Option& option) override;
         virtual std::string parameterSyntax(const std::string& value, bool mandatory) const override;
+        std::string sizeSyntax(size_t value) const;
 
 		void parsePriority();
 		void parseNormal();
@@ -567,7 +569,7 @@ namespace BazPO
 		void registerAlias(const std::string& option, const std::string& secondOption);
 		void multiArgParseError(const std::string& key, const std::string& value);
         void unknownArgParsingError(const std::string& value);
-        void constraintError(const std::string& constraints, const std::string& value);
+        void constraintError(const std::string& constraints, const std::string& value, const std::string& parameter);
         void multiConstraintError(const std::string& message);
         void throwOnMismatch(bool tagless) const;
 
@@ -739,7 +741,7 @@ namespace BazPO
                     ++it.second.ExistsCount;
                     it.second.setValue(m_argv[cursor]);
                     if (it.second.Constrained != nullptr && !it.second.Constrained->satisfied())
-                        constraintError(it.second.Constrained->what(), it.second.value());
+                        constraintError(it.second.Constrained->what(), it.second.value(), it.second.Parameter);
                     if (it.second.MultiConstrained != nullptr && !it.second.MultiConstrained->satisfied(it.second))
                         multiConstraintError(it.second.MultiConstrained->what());
                 }
@@ -768,7 +770,7 @@ namespace BazPO
                 else if (m_exitOnUnexpectedValue)
                     multiArgParseError(lastOption->Parameter, m_argv[i]);
                 if (lastOption->Constrained != nullptr && !lastOption->Constrained->satisfied())
-                    constraintError(lastOption->Constrained->what(), lastOption->value());
+                    constraintError(lastOption->Constrained->what(), lastOption->value(), lastOption->Parameter);
                 if (lastOption->MultiConstrained != nullptr && !lastOption->MultiConstrained->satisfied(*lastOption))
                     multiConstraintError(lastOption->MultiConstrained->what());
                 if (lastOption->ParseType == _detail::OptionParseType::Value)
@@ -846,9 +848,9 @@ namespace BazPO
             m_aliasMap.emplace(secondOption, option);
     }
 
-    void Cli::constraintError(const std::string& constraints, const std::string& value)
+    void Cli::constraintError(const std::string& constraints, const std::string& value, const std::string& parameter)
     {
-        *m_outputStream << "Expected " << constraints << " where -> '" << value << "' is not expected";
+        *m_outputStream << "Expected " << constraints << " where -> '" << value << "' is not expected for option " << parameter;
         exitWithCode(1);
     }
 
@@ -858,9 +860,9 @@ namespace BazPO
         exitWithCode(1);
     }
 
-    void Cli::conversionError(const std::string& value)
+    void Cli::conversionError(const std::string& value, const std::string& parameter)
     {
-        *m_outputStream << "Type of value '" << value << "' is not expected";
+        *m_outputStream << "Type of value '" << value << "' is not expected for option " << parameter;
         exitWithCode(1);
     }
 
@@ -880,9 +882,9 @@ namespace BazPO
     {
         if (option.ParseType == _detail::OptionParseType::Unidentified)
             if (option.Mandatory)
-                *m_outputStream << option.Description << "(" << option.maxValueCount() << "...) ";
+                *m_outputStream << option.Description << sizeSyntax(option.maxValueCount()) << " ";
             else
-                *m_outputStream << "[" << option.Description << "(" << option.maxValueCount() << "...)" << "] ";
+                *m_outputStream << "[" << option.Description << sizeSyntax(option.maxValueCount()) << "] ";
         else
             *m_outputStream << parameterSyntax(option.Parameter, option.Mandatory);
     }
@@ -891,7 +893,22 @@ namespace BazPO
     {
         if (option.ParseType != _detail::OptionParseType::Unidentified)
             *m_outputStream << std::left << std::setw(m_maxOptionParameterSize + 9) << parameterSyntax(option.Parameter, option.Mandatory)
-                            << std::left << std::setw(m_maxSecondOptionParameterSize + 10) << option.SecondParameter << option.Description << std::endl;
+            << std::left << std::setw(m_maxSecondOptionParameterSize + 10) << option.SecondParameter << option.Description << std::endl;
+        else
+            *m_outputStream << std::left << std::setw(m_maxOptionParameterSize + 9 + m_maxSecondOptionParameterSize + 10) << parameterSyntax(option.Description, option.Mandatory)
+            << sizeSyntax(option.maxValueCount()) << std::endl;
+    }
+
+    std::string Cli::sizeSyntax(size_t value) const
+    {
+        std::string str;
+        if (value == 1)
+            str.append("(").append(std::to_string(value)).append(")");
+        else if (value == SIZE_MAX)
+            str.append("(").append("*...)");
+        else if (value > 1)
+            str.append("(").append(std::to_string(value)).append("...)");
+        return str;
     }
 
     std::string Cli::parameterSyntax(const std::string& value, bool mandatory) const
@@ -899,6 +916,8 @@ namespace BazPO
         std::string str;
         if (mandatory)
             str.append("<").append(value).append(">");
+        else if (value == "")
+            return str;
         else
             str.append("[").append(value).append("]");
         return str;
