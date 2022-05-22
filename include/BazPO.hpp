@@ -42,7 +42,6 @@ namespace BazPO
 	class Option;
     class Constraint;
     class MultiConstraint;
-
 	class ICli
 	{
 	public:
@@ -221,6 +220,8 @@ namespace BazPO
         bool Prioritized = false;
         Constraint* Constrained = nullptr;
         MultiConstraint* MultiConstrained = nullptr;
+        std::shared_ptr<Constraint> ConstraintStorage;
+
         ICli* po;
         friend class Cli;
         friend class Constraint;
@@ -236,9 +237,7 @@ namespace BazPO
     protected:
         explicit Constraint(Option& option)
             : option(option)
-        {
-            option.constrain(*this);
-        }
+        { option.constrain(*this); }
     public:
         Constraint() = delete;
         Constraint(const Constraint&) = delete;
@@ -287,14 +286,8 @@ namespace BazPO
             , errorMessage(errorMessage)
         {}
 
-        virtual bool satisfied() const override
-        {
-            return isSatisfied(option);
-        };
-        virtual std::string what() const override
-        {
-            return errorMessage;
-        };
+        virtual bool satisfied() const override { return isSatisfied(option); };
+        virtual std::string what() const override { return errorMessage; };
     private:
         std::function<bool(const Option&)> isSatisfied;
         std::string errorMessage;
@@ -364,10 +357,9 @@ namespace BazPO
 
         friend class Cli;
     };
-
-    Option& Option::constrain(std::deque<std::string> stringConstraints) { Constrained = std::make_shared<StringConstraint>(*this, stringConstraints).get(); return *this; };
+    Option& Option::constrain(std::deque<std::string> stringConstraints) { ConstraintStorage = std::make_shared<StringConstraint>(*this, stringConstraints); return *this; };
     template<typename T>
-    Option& Option::constrain(std::pair<T, T> minMaxConstraints) { Constrained = std::make_shared<MinMaxConstraint<T>>(*this, minMaxConstraints).get(); return *this; };
+    Option& Option::constrain(std::pair<T, T> minMaxConstraints) { ConstraintStorage = std::make_shared<MinMaxConstraint<T>>(*this, minMaxConstraints); return *this; };
 
     class EitherMandatory
         : public MultiConstraint
@@ -388,17 +380,14 @@ namespace BazPO
                 totalExist+= option.first->exists();
                 if (totalExist > 1)
                     return false;
-                else if (option.first == &foundOption && chosenOption == nullptr)
+                else if (option.first == &foundOption && chosenOption == nullptr && foundOption.exists())
                 {
                     option.second = true;
                     chosenOption = option.first;
                     setRelativesNotMandatory();
                 }
             }
-            if (chosenOption != nullptr)
-                return true;
-            else
-                return false;
+            return chosenOption != nullptr;
         }
 
         virtual std::string what() override
@@ -410,10 +399,9 @@ namespace BazPO
                 msg.append(parameterSyntax(*option.first));
                 msg.append(", ");
             }
-            msg.append(" parameters can be provided");
+            msg.append(" parameters must be provided");
             return msg;
         }
-
 
     private:
         void makeMandatory(Option& option1) const { option1.mandatory(); }
@@ -512,7 +500,7 @@ namespace BazPO
 			, m_programDescription(programDescription)
 		{
 #ifndef BazPO_DISABLE_AUTO_HELP_MESSAGE
-            add("-h", [this](const Option&) {exitWithCode(0); }, "--help", "Prints this help message").prioritize();
+            add("-h", [this](const Option&) { exitWithCode(0); }, "--help", "Prints this help message").prioritize();
             setUndefined();
 #endif
 		};
@@ -548,9 +536,9 @@ namespace BazPO
 		inline void unexpectedArgumentsAcceptable() { m_exitOnUnexpectedValue = false; }
         template<typename... Options>
         EitherMandatory& eitherMandatory(Options&... options) { m_multiConstraintStorage.push_back(std::make_shared<EitherMandatory>(this, m_refMap.at(getKey(options))...)); return reinterpret_cast<EitherMandatory&>(*m_multiConstraintStorage.back()); }
-        void constraint(const std::string& key, std::deque<std::string> stringConstraints){ m_constraintStorage.push_back(std::make_shared<StringConstraint>(m_refMap.at(getKey(key)), stringConstraints)); };
+        void constraint(const std::string& key, std::deque<std::string> stringConstraints) { m_refMap.at(getKey(key)).constrain(stringConstraints); };
         template<typename T>
-        void constraint(const std::string& key, std::pair<T, T> minMaxConstraints) { m_constraintStorage.push_back(std::make_shared<MinMaxConstraint<T>>(m_refMap.at(getKey(key)), minMaxConstraints)); };
+        void constraint(const std::string& key, std::pair<T, T> minMaxConstraints) { m_refMap.at(getKey(key)).constrain<T>(minMaxConstraints); };
 
 	private:
         virtual void conversionError(const std::string& value, const std::string& parameter) override;
@@ -581,7 +569,6 @@ namespace BazPO
 		const char* m_programDescription;
 
 		std::deque<std::shared_ptr<Option>> m_optionStorage;
-        std::deque<std::shared_ptr<Constraint>> m_constraintStorage;
         std::deque<std::shared_ptr<MultiConstraint>> m_multiConstraintStorage;
 		std::map<std::string, Option&> m_refMap;
 		std::map<std::string, Option&> m_priorityMap;
@@ -746,7 +733,7 @@ namespace BazPO
                         multiConstraintError(it.second.MultiConstrained->what());
                 }
         }
-        if(cursor < m_argc && m_exitOnUnexpectedValue)
+        if (cursor < m_argc && m_exitOnUnexpectedValue)
             unknownArgParsingError(m_argv[cursor]);
     }
 
@@ -803,10 +790,20 @@ namespace BazPO
         *m_outputStream << ": ";
         std::string temp;
         std::getline(*m_inputStream, temp);
-
-        m_inputStorage.emplace_back(temp);
-        option.setValue(m_inputStorage.back().c_str());
-        option.Exists = true;
+        
+        if (!temp.empty())
+        {
+            m_inputStorage.emplace_back(temp);
+            option.setValue(m_inputStorage.back().c_str());
+            option.Exists = true;
+            ++option.ExistsCount;
+            if (option.Constrained != nullptr && !option.Constrained->satisfied())
+                constraintError(option.Constrained->what(), option.value(), option.Parameter);
+            if (option.MultiConstrained != nullptr && !option.MultiConstrained->satisfied(option))
+                multiConstraintError(option.MultiConstrained->what());
+        }
+        else if (option.Mandatory && m_exitOnUnexpectedValue && option.MultiConstrained == nullptr)
+            exitWithCode(1);
     }
 
     void Cli::printOptions()

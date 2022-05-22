@@ -581,6 +581,19 @@ TEST_F(ProgramOptionsTest, multiple_inputs_can_be_provided_when_requested_via_cl
     ExpectOptionExistsWithValues(po, "-a", { "input input2 input3", "input4 input5 input6" });
 }
 
+TEST_F(ProgramOptionsTest, empty_user_input_recognized_does_not_exist) {
+    int argc = 1;
+    const char* argv[] = { "programoptions" };
+    std::stringstream str("\ninput4 input5 input6\n");
+    Cli po(argc, argv);
+    po.add("-a", "--alpha", "Option A").mandatory();
+    po.add("-b", "--bravo", "Option B").mandatory();
+    po.changeIO(&std::cout, &str);
+    po.userInputRequired();
+
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+}
+
 TEST_F(ProgramOptionsTest, function_option_executes_successfully) {
     bool executed = false;
     int argc = 2;
@@ -855,6 +868,38 @@ TEST_F(ProgramOptionsTest, either_mandatory_exits_if_one_of_the_parameters_given
     ValueOption optionc(&po, "-c", "--charlie", "Option C", "", true);
 
     EitherMandatory eithers(&po, optiona, optionb);
+
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+}
+
+TEST_F(ProgramOptionsTest, either_mandatory_does_not_exit_when_user_input_empty_for_one) {
+    int argc = 1;
+    const char* argv[] = { "programoptions" };
+    std::stringstream str("\ninput4 input5 input6\n");
+    Cli po(argc, argv);
+    auto& a = po.add("-a", "--alpha", "Option A");
+    auto& b = po.add("-b", "--bravo", "Option B");
+    EitherMandatory eitherMandatory(&po, a, b);
+
+    po.changeIO(&std::cout, &str);
+    po.userInputRequired();
+    po.parse();
+
+    ExpectOptionExistsWithValues(b, { "input4 input5 input6"});
+    EXPECT_FALSE(a.exists());
+}
+
+TEST_F(ProgramOptionsTest, either_mandatory_exits_when_user_input_empty_for_both) {
+    int argc = 1;
+    const char* argv[] = { "programoptions" };
+    std::stringstream str("\n\n");
+    Cli po(argc, argv);
+    auto& a = po.add("-a", "--alpha", "Option A");
+    auto& b = po.add("-b", "--bravo", "Option B");
+    EitherMandatory eitherMandatory(&po, a, b);
+
+    po.changeIO(&std::cout, &str);
+    po.userInputRequired();
 
     EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
 }
