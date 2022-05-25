@@ -7,11 +7,12 @@
 
 BazPO is a flexible C++14 single header program argument parsing library. \
 \
-It is very easy to use with multiple highly readable syntax that aims to keep your main function simple. \
+BazPO is very easy to use with multiple highly readable syntax that aims to keep your main function simple. \
 Apart from other argument parsers BazPO does not enforce static type checking rather types are enforced when used therefore making the option definitions simpler. \
-BazPO can simply be included as a header to the program without any linking.
+BazPO can simply be included as a header to the program without any linking. \
 
-**[Download BazPO Here](https://github.com/karusb/BazPO/archive/refs/tags/v0.1.0.zip)**\
+BEWARE! BazPO is still under development...
+**[Download BazPO Here](https://github.com/karusb/BazPO/archive/refs/tags/v0.1.1.zip)**\
 *BazPO is licensed under MIT license, so it can be used as is without any restrictions. However, do not remove license and copyright information from the header.*
 
 ## **Contents**
@@ -20,8 +21,8 @@ BazPO can simply be included as a header to the program without any linking.
   - [**Contents**](#contents)
   - [**BazPO Features**](#bazpo-features)
   - [**Getting Started**](#getting-started)
-    - [**Functions / Usage**](#functions--usage)
-    - [**Examples**](#examples)
+    - [Functions / Usage](#functions--usage)
+    - [Examples](#examples)
       - [Example (1)](#example-1)
       - [Example (2)](#example-2)
       - [Example (3)](#example-3)
@@ -66,9 +67,9 @@ BazPO can simply be included as a header to the program without any linking.
 - Download BazPO.hpp source code and add to your project folder
 - Include the downloaded header to your main program
 - Library will be compiled along with your C++14 program
-- **[Download BazPO Here](https://github.com/karusb/BazPO/archive/refs/tags/v0.1.0.zip)**
+- **[Download BazPO Here](https://github.com/karusb/BazPO/archive/refs/tags/v0.1.1.zip)**
 
-### **Functions / Usage**
+### Functions / Usage
 
 1. Instantiate BazPO::Cli
 2. Add your options
@@ -81,7 +82,7 @@ BazPO can simply be included as a header to the program without any linking.
   - Defining the option by yourself [`see example 3`](#example-3)
 
 - **Customizing an option**
-- Refer to [`Customizations`](#customizations) header.
+  - Refer to [`Customizations`](#customizations) header.
   
 - **Reading values**
   - Calling option(tag) with the tag you specified to get the option [`see example 1`](#example-1)
@@ -89,7 +90,7 @@ BazPO can simply be included as a header to the program without any linking.
   - Directly reading from the defined object [`see example 3`](#example-3)
   - Tagless options have an internal tag, which is the order number they are added in the program [`see example 2`](#example-2)
 
-### **Examples**
+### Examples
 
 #### Example (1)
 
@@ -217,9 +218,10 @@ BOOL:1
 
 - Option
   - Before Parsing
-    - **mandatory** -> sets the option as mandatory input
-    - **withMaxValueCount** -> sets a maximum number of accepted values
+    - **mandatory()** -> sets the option as mandatory input
+    - **withMaxValueCount(size_t)** -> sets a maximum number of accepted values
     - **prioritize()** -> see [`Option prioritizing`](#option-prioritizing-like--h) section.
+    - **constrain({"str1", "str2"})** / **constrain<T>(T min, T max)** / **constrain(bool(Option&) isSatisfied, string errorMessage)** -> constrains the option, see [`Constraints`](#constraints) section.
   - After Parsing
     - **exists()** -> option is present in the arguments list
     - **existsCount()** -> returns the number the option is present i.e -a -a -a will return 3
@@ -397,6 +399,20 @@ Constraints are used to restrict the values that can be provided for an option.
 
 ```c++
     Cli po(argc, argv);
+    FunctionOption optiona(&po, "-f",[&](const Option& option) {
+        /* do file operations */
+        }, "--file", "File input");
+    FunctionOption optionb(&po, "-d",[&](const Option& option) {
+        /* do data operations */
+        }, "--data", "Raw data input");
+
+    EitherMandatory eithers(&po, optiona, optionb);
+```
+
+**Example (2)**
+
+```c++
+    Cli po(argc, argv);
     ValueOption optiona(&po, "-f", "--file", "File input");
     ValueOption optionb(&po, "-d", "--data", "Raw data input");
 
@@ -405,15 +421,15 @@ Constraints are used to restrict the values that can be provided for an option.
     po.parse();
     if(&optiona == eithers.satisfiedOption())
     {
-        // do file operations
+        /* do file operations */
     }
     else
     {
-        // do data operations
+        /* do data operations */
     }
 ```
 
-**Example (2)**
+**Example (3)**
 
 ```c++
     Cli po(argc, argv);
@@ -425,11 +441,11 @@ Constraints are used to restrict the values that can be provided for an option.
 
     if(&file == eithers.satisfiedOption())
     {
-        // do file operations
+        /* do file operations */
     }
     else
     {
-        // do data operations
+        /* do data operations */
     }
 ```
 
@@ -449,9 +465,7 @@ Constraints are used to restrict the values that can be provided for an option.
 
 ### **Making Invalid/Expanded Arguments Acceptable**
 
-- For example; when using tagless options, only 3 arguments are needed but calling the program with 4 arguments will cause to exit due to the unexpected argument.
-- This behaviour could be used to accept expanded files provided to the program such as "myprogram -a *.txt"
-- When used with other options, valid options will be parsed and program won't exit.
+- When used, valid options will be parsed and program won't exit if an unknown argument is provided.
 
 **Example**
 
