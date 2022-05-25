@@ -1020,6 +1020,22 @@ TEST_F(ProgramOptionsTest, constrained_under_max_value_exits)
     EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
 }
 
+TEST_F(ProgramOptionsTest, constrained_value_exits_on_incorrect_user_input)
+{
+    int argc = 1;
+    const char* argv[1]{ {"programoptions"}};
+    std::stringstream str("input4 input5 input6\n");
+    Cli po{ argc, argv };
+
+    ValueOption optiona(&po, "-a", "--alpha", "Option A");
+    StringConstraint constraint(optiona, { "aoption", "boption", "coption" });
+    po.mandatory("-a");
+    po.changeIO(&std::cout, &str);
+    po.userInputRequired();
+
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+}
+
 TEST_F(ProgramOptionsTest, custom_constraint_exits)
 {
     class CustomConstraint
@@ -1052,7 +1068,7 @@ TEST_F(ProgramOptionsTest, custom_constraint_exits)
     EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
 }
 
-TEST_F(ProgramOptionsTest, function_constraint_exits)
+TEST_F(ProgramOptionsTest, function_constraint_exits_reference)
 {
     int argc = 5;
     const char* argv[5]{ {"programoptions"}, {"-a"}, {"abcd"}, {"ab"}, {"abc"} };
@@ -1060,6 +1076,21 @@ TEST_F(ProgramOptionsTest, function_constraint_exits)
     MultiOption optiona(&po, "-a", "--alpha", "Option A");
 
     FunctionConstraint constraint(optiona, [](const Option& option) -> bool {
+        if ("abc" != option.valueAs<std::string>())
+            return false;
+        return true;
+        }, "value must be abc");
+
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+}
+
+TEST_F(ProgramOptionsTest, function_constraint_exits_cli)
+{
+    int argc = 5;
+    const char* argv[5]{ {"programoptions"}, {"-a"}, {"abcd"}, {"ab"}, {"abc"} };
+    Cli po{ argc, argv };
+    MultiOption optiona(&po, "-a", "--alpha", "Option A");
+    po.constraint("-a", [](const Option& option) -> bool {
         if ("abc" != option.valueAs<std::string>())
             return false;
         return true;
