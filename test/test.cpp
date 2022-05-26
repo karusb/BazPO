@@ -1041,6 +1041,23 @@ TEST_F(ProgramOptionsTest, constrained_value_exits_on_incorrect_user_input)
     EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
 }
 
+TEST_F(ProgramOptionsTest, multiple_constrained_value_exits_when_second_not_satisfied)
+{
+    int argc = 3;
+    const char* argv[3]{ {"programoptions"}, {"-a"}, {"1.00000001"} };
+    Cli po{ argc, argv };
+    ValueOption optiona(&po, "-a", "--alpha", "Option A");
+
+    MinMaxConstraint<double> minMax(optiona, { 0, 1.75 });
+    FunctionConstraint divisibleBy2(optiona, [](const Option& option) -> bool {
+        if (std::fmod(option.valueAs<double>(), 2) != 0)
+            return false;
+        return true;
+        }, "value must be divisible by 2");
+
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+}
+
 TEST_F(ProgramOptionsTest, custom_constraint_exits)
 {
     class CustomConstraint
