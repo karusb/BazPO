@@ -588,7 +588,7 @@ namespace BazPO
         std::map<std::string, Option&> m_refMap;
         std::map<std::string, Option&> m_priorityMap;
         std::map<std::string, std::string> m_aliasMap;
-        std::vector<std::string> m_inputStorage;
+        std::deque<std::string> m_inputStorage;
         bool m_parsed = false;
         bool m_parsedPriority = false;
         bool m_askInputForMandatoryOptions = false;
