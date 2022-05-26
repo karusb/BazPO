@@ -735,20 +735,22 @@ namespace BazPO
 
     void Cli::parseTagless()
     {
-        int cursor = 1;
-        for (auto& it : m_refMap)
+        int taglessId = 0;
+        for (int i = 1; i < m_argc; ++i)
         {
-            if (it.second.ParseType == _detail::OptionParseType::Unidentified)
-                for (size_t i = 0; cursor < m_argc && i < it.second.maxValueCount(); ++cursor, ++i)
-                {
-                    it.second.Exists = true;
-                    ++it.second.ExistsCount;
-                    it.second.setValue(m_argv[cursor]);
-                    checkOptionConstraints(it.second);
-                }
+            auto option = m_refMap.find(std::to_string(taglessId));
+            if (option != m_refMap.end() && option->second.ParseType == _detail::OptionParseType::Unidentified)
+            {
+                option->second.Exists = true;
+                ++option->second.ExistsCount;
+                option->second.setValue(m_argv[i]);
+                checkOptionConstraints(option->second);
+                if (option->second.ExistsCount == option->second.maxValueCount())
+                    ++taglessId;
+            }
+            else if (taglessId > getCurrentId() && m_exitOnUnexpectedValue)
+                unknownArgParsingError(m_argv[i]);
         }
-        if (cursor < m_argc && m_exitOnUnexpectedValue)
-            unknownArgParsingError(m_argv[cursor]);
     }
 
     void Cli::parseNormal()
