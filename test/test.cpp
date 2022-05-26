@@ -792,6 +792,49 @@ TEST_F(ProgramOptionsTest, tagless_option_with_multiple_value_reference)
     ExpectOptionExistsWithValues(a, { "value1", "value2", "value3", "value4" });
 }
 
+TEST_F(ProgramOptionsTest, all_option_combinations_with_reference_succesful)
+{
+    {
+        int argc = 7;
+        const char* argv[7]{ {"programoptions"}, {"taglessValue1"}, {"-a"}, {"Aoption1"}, {"-b"}, {"value1"}, {"value2"} };
+        Cli po(argc, argv);
+        ValueOption option(&po, "-a", "--alpha", "Option A");
+        MultiOption multiOption(&po, "-b", "--bravo", "Option B");
+        TaglessOption taglessOption(&po, 1, "Option C");
+        po.parse();
+
+        ExpectOptionExistsWithValue(taglessOption, "taglessValue1");
+        ExpectOptionExistsWithValue(option, "Aoption1");
+        ExpectOptionExistsWithValues(multiOption, { "value1", "value2" });
+    }
+    {
+        int argc = 7;
+        const char* argv[7]{ {"programoptions"}, {"-a"}, {"Aoption2"}, {"taglessValue2"}, {"-b"}, {"value3"}, {"value4"} };
+        Cli po(argc, argv);
+        ValueOption option(&po, "-a", "--alpha", "Option A");
+        MultiOption multiOption(&po, "-b", "--bravo", "Option B");
+        TaglessOption taglessOption(&po, 1, "Option C");
+        po.parse();
+
+        ExpectOptionExistsWithValue(taglessOption, "taglessValue2");
+        ExpectOptionExistsWithValue(option, "Aoption2");
+        ExpectOptionExistsWithValues(multiOption, { "value3", "value4" });
+    }
+    {
+        int argc = 7;
+        const char* argv[7]{ {"programoptions"}, {"-a"}, {"Aoption3"}, {"-b"}, {"value5"}, {"value6"}, {"taglessValue3"} };
+        Cli po(argc, argv);
+        ValueOption option(&po, "-a", "--alpha", "Option A");
+        MultiOption multiOption(&po, "-b", "--bravo", "Option B", "", false, 2);
+        TaglessOption taglessOption(&po, 1, "Option C");
+        po.parse();
+
+        ExpectOptionExistsWithValue(taglessOption, "taglessValue3");
+        ExpectOptionExistsWithValue(option, "Aoption3");
+        ExpectOptionExistsWithValues(multiOption, { "value5", "value6" });
+    }
+}
+
 TEST_F(ProgramOptionsTest, either_mandatory_runs_normally_when_one_mandatory_option_is_provided)
 {
     int argc = 7;
@@ -1142,34 +1185,6 @@ TEST_F(ProgramOptionsTest, conversion_error_exits_when_value_is_converted)
 
     EXPECT_EXIT(optiona.valueAs<double>(), testing::ExitedWithCode(1), "");
     EXPECT_EXIT(optiona.valuesAs<double>(), testing::ExitedWithCode(1), "");
-}
-
-TEST_F(ProgramOptionsTest, tagless_then_other_mismatch_throws) 
-{
-    {
-        Cli po(argc, argv);
-        po.add();
-        EXPECT_THROW(po.add("-a"), _detail::OptionMismatchException);
-    }
-    {
-        Cli po(argc, argv);
-        TaglessOption a(&po);
-        EXPECT_THROW(ValueOption a(&po, ""), _detail::OptionMismatchException);
-    }
-}
-
-TEST_F(ProgramOptionsTest, other_then_tagless_mismatch_throws) 
-{
-    {
-        Cli po(argc, argv);
-        po.add("-a");
-        EXPECT_THROW(po.add(), _detail::OptionMismatchException);
-    }
-    {
-        Cli po(argc, argv);
-        ValueOption a(&po, "");
-        EXPECT_THROW(TaglessOption a(&po), _detail::OptionMismatchException);
-    }
 }
 
 TEST_F(ProgramOptionsTest, tagless_throws_if_prioritized) 

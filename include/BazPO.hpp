@@ -72,19 +72,12 @@ namespace BazPO
         virtual std::string parameterSyntax(const std::string& value, bool mandatory) const = 0;
         virtual void conversionError(const std::string& value, const std::string& parameter) = 0;
 
-        virtual void setTagless() { m_taglessMode = true; }
-        virtual void setNormal() { m_normalMode = true; }
-        void setUndefined() { m_normalMode = false; m_taglessMode = false; }
-        bool tagless() const { return m_taglessMode; }
-        bool normal() const { return m_normalMode; }
-        size_t getNextId() { ++m_taglessOptionNextId; return m_taglessOptionNextId; }
-        size_t getCurrentId() const { return m_taglessOptionNextId; }
+        int getNextId() { ++m_taglessOptionNextId; return m_taglessOptionNextId; }
+        int getCurrentId() const { return m_taglessOptionNextId; }
 
 
     private:
-        bool m_taglessMode = false;
-        bool m_normalMode = false;
-        size_t m_taglessOptionNextId = -1;
+        int m_taglessOptionNextId = -1;
 
         friend class Option;
         friend class MultiConstraint;
@@ -155,10 +148,7 @@ namespace BazPO
             {
                 if (Parameter == "")
                     Parameter = std::to_string(po->getNextId());
-                if (ParseType == _detail::OptionParseType::Unidentified)
-                    po->setTagless();
-                else
-                    po->setNormal();
+
                 po->add(*this);
             }
         }
@@ -180,7 +170,7 @@ namespace BazPO
             return *this;
         }
         Option& withMaxValueCount(size_t count) { MaxValueCount = count; return *this; }
-        Option& mandatory() { Mandatory = !Mandatory; return *this; }
+        Option& mandatory() { Mandatory = true; return *this; }
         Option& constrain(std::deque<std::string> stringConstraints);
         template<typename T>
         Option& constrain(std::pair<T, T> minMaxConstraints);
@@ -208,6 +198,7 @@ namespace BazPO
         void setValue(const char* value) { Value = value; Values.push_back(value); };
         virtual void execute(const Option&) const { /* there is nothing to execute by default */ };
         size_t maxValueCount() const { return MaxValueCount; }
+        void notMandatory() { Mandatory = false; }
 
     private:
         void setCli(ICli& cli) { po = &cli; }
@@ -352,6 +343,12 @@ namespace BazPO
         virtual bool satisfied(Option& foundOption) = 0;
         virtual std::string what() = 0;
 
+        void makeMandatory(Option& option1) const { option1.mandatory(); }
+        template <typename... Options>
+        void makeMandatory(Option& option1, Options&... rest) const { makeMandatory(option1); makeMandatory(rest...); }
+        void makeNotMandatory(Option& option1) const { option1.notMandatory(); }
+        template <typename... Options>
+        void makeNotMandatory(Option& option1, Options&... rest) const { makeNotMandatory(option1); makeNotMandatory(rest...); }
         std::string parameterSyntax(const Option& option) const { return cli->parameterSyntax(option.Parameter, option.Mandatory); }
 
         std::deque<std::pair<Option*, bool>> relativeOptions;
@@ -407,20 +404,19 @@ namespace BazPO
             for (auto& option : relativeOptions)
             {
                 msg.append(parameterSyntax(*option.first));
-                msg.append(", ");
+                if(option.first != relativeOptions.back().first)
+                    msg.append(", ");
             }
             msg.append(" parameters must be provided");
             return msg;
         }
 
     private:
-        void makeMandatory(Option& option1) const { option1.mandatory(); }
-        template <typename... Options>
-        void makeMandatory(Option& option1, Options&... rest) const { makeMandatory(option1); makeMandatory(rest...); }
+
         void setRelativesNotMandatory()
         {
             for (auto& option : relativeOptions)
-                option.first->mandatory();
+                makeNotMandatory(*option.first);
         }
 
         Option* chosenOption = nullptr;
@@ -515,7 +511,6 @@ namespace BazPO
         {
 #ifndef BazPO_DISABLE_AUTO_HELP_MESSAGE
             add("-h", [this](const Option&) { exitWithCode(0); }, "--help", "Prints this help message").prioritize();
-            setUndefined();
 #endif
         };
         // Implementation of ICli
@@ -564,10 +559,12 @@ namespace BazPO
         std::string sizeSyntax(size_t value) const;
 
         void parsePriority();
-        void parseNormal();
-        void parseTagless();
+        void parseOptions();
         void checkMandatoryOptions();
         inline void checkOptionConstraints(Option& option);
+        inline void crossCheckMultiConstraints();
+        inline void executeExistingOptions() const;
+        inline void executePriorityOptions() const;
         inline std::string getKey(const std::string& option) const { return (m_aliasMap.find(option) != m_aliasMap.end()) ? m_aliasMap.at(option) : option; }
         void registerOptionSizes(size_t optionSize, size_t secondOptionSize, size_t descriptionSize);
         void registerAlias(const std::string& option, const std::string& secondOption);
@@ -575,7 +572,6 @@ namespace BazPO
         void unknownArgParsingError(const std::string& value);
         void constraintError(const std::string& constraints, const std::string& value, const std::string& parameter);
         void multiConstraintError(const std::string& message);
-        void throwOnMismatch(bool tagless) const;
 
         size_t m_maxOptionParameterSize = 0;
         size_t m_maxSecondOptionParameterSize = 0;
@@ -601,8 +597,6 @@ namespace BazPO
 
     Option& Cli::add(const std::string& option, const std::string& secondOption, const std::string& description, const std::string& defaultValue, bool multipleOptions, size_t maxValueCount)
     {
-        setNormal();
-        throwOnMismatch(false);
         registerOptionSizes(option.size(), secondOption.size(), description.size());
         if (multipleOptions)
         {
@@ -620,8 +614,6 @@ namespace BazPO
 
     Option& Cli::add(const std::string& option, const std::function<void(const Option&)>& onExists, const std::string& secondOption, const std::string& description, const std::string& defaultValue, bool multipleOptions, size_t maxValueCount)
     {
-        setNormal();
-        throwOnMismatch(false);
         registerOptionSizes(option.size(), secondOption.size(), description.size());
         if (multipleOptions)
         {
@@ -639,8 +631,6 @@ namespace BazPO
 
     Option& Cli::add(size_t valueCount, const std::string& description, const std::string& defaultValue)
     {
-        setTagless();
-        throwOnMismatch(true);
         registerOptionSizes(getNextId() % 10 + 1, 0, description.size());
         m_optionStorage.push_back(std::make_shared<TaglessOption>(nullptr, valueCount, description, defaultValue, false));
 
@@ -650,8 +640,6 @@ namespace BazPO
 
     Option& Cli::add(const std::function<void(const Option&)>& onExists, size_t valueCount, const std::string& description, const std::string& defaultValue)
     {
-        setTagless();
-        throwOnMismatch(true);
         registerOptionSizes(getNextId() % 10 + 1, 0, description.size());
         m_optionStorage.push_back(std::make_shared<FunctionTaglessOption>(nullptr, onExists, valueCount, description, defaultValue, false));
 
@@ -661,7 +649,6 @@ namespace BazPO
 
     void Cli::add(Option& option)
     {
-        throwOnMismatch(option.ParseType == _detail::OptionParseType::Unidentified);
         registerOptionSizes(option.Parameter.size(), option.SecondParameter.size(), option.Description.size());
         m_refMap.emplace(option.Parameter, option);
         registerAlias(option.Parameter, option.SecondParameter);
@@ -675,26 +662,16 @@ namespace BazPO
         parsePriority();
         if (!m_parsedPriority)
         {
-            if (tagless())
-                parseTagless();
-            else
-                parseNormal();
+            parseOptions();
 
             checkMandatoryOptions();
-            for (auto& it : m_refMap)
-                for (auto& constraint : it.second.MultiConstrained)
-                    if (!constraint->satisfied(it.second))
-                        multiConstraintError(constraint->what());
+            crossCheckMultiConstraints();
             m_parsed = true;
 
-            for (const auto& it : m_refMap)
-                if (it.second.Exists)
-                    it.second.execute(it.second);
+            executeExistingOptions();
         }
         else
-            for (const auto& it : m_priorityMap)
-                if (it.second.Exists)
-                    it.second.execute(it.second);
+            executePriorityOptions();
 
     }
     void Cli::parsePriority()
@@ -733,29 +710,10 @@ namespace BazPO
         }
     }
 
-    void Cli::parseTagless()
-    {
-        int taglessId = 0;
-        for (int i = 1; i < m_argc; ++i)
-        {
-            auto option = m_refMap.find(std::to_string(taglessId));
-            if (option != m_refMap.end() && option->second.ParseType == _detail::OptionParseType::Unidentified)
-            {
-                option->second.Exists = true;
-                ++option->second.ExistsCount;
-                option->second.setValue(m_argv[i]);
-                checkOptionConstraints(option->second);
-                if (option->second.ExistsCount == option->second.maxValueCount())
-                    ++taglessId;
-            }
-            else if (taglessId > getCurrentId() && m_exitOnUnexpectedValue)
-                unknownArgParsingError(m_argv[i]);
-        }
-    }
-
-    void Cli::parseNormal()
+    void Cli::parseOptions()
     {
         Option* lastOption = nullptr;
+        int taglessId = 0;
         for (int i = 1; i < m_argc; ++i)
         {
             auto key = getKey(m_argv[i]);
@@ -768,15 +726,24 @@ namespace BazPO
             }
             else if (lastOption != nullptr)
             {
-                if (lastOption->maxValueCount() > lastOption->values().size() || lastOption->ParseType == _detail::OptionParseType::Value)
+                if (lastOption->MaxValueCount > lastOption->Values.size() || lastOption->ParseType == _detail::OptionParseType::Value)
                     lastOption->setValue(m_argv[i]);
                 else if (m_exitOnUnexpectedValue)
                     multiArgParseError(lastOption->Parameter, m_argv[i]);
                 checkOptionConstraints(*lastOption);
-                if (lastOption->ParseType == _detail::OptionParseType::Value)
+                if (lastOption->ParseType == _detail::OptionParseType::Value || lastOption->MaxValueCount == lastOption->Values.size())
                     lastOption = nullptr;
             }
-            else if (m_exitOnUnexpectedValue)
+            else if ((option = m_refMap.find(std::to_string(taglessId))) != m_refMap.end() && option->second.ParseType == _detail::OptionParseType::Unidentified)
+            {
+                option->second.Exists = true;
+                ++option->second.ExistsCount;
+                option->second.setValue(m_argv[i]);
+                checkOptionConstraints(option->second);
+                if (option->second.ExistsCount == option->second.MaxValueCount)
+                    ++taglessId;
+            }
+            else if (taglessId > getCurrentId() && m_exitOnUnexpectedValue)
                 unknownArgParsingError(m_argv[i]);
         }
     }
@@ -787,6 +754,7 @@ namespace BazPO
         {
             if (pair.second.Mandatory && !pair.second.Exists)
             {
+                printOption(pair.second);
                 printOptionUsage(pair.second);
                 *m_outputStream << " is a required parameter" << std::endl;
                 if (m_askInputForMandatoryOptions)
@@ -805,6 +773,28 @@ namespace BazPO
         for(const auto& multiConstraint : option.MultiConstrained)
             if(!multiConstraint->satisfied(option))
                 multiConstraintError(multiConstraint->what());
+    }
+
+    inline void Cli::crossCheckMultiConstraints()
+    {
+        for (auto& it : m_refMap)
+            for (auto& constraint : it.second.MultiConstrained)
+                if (!constraint->satisfied(it.second))
+                    multiConstraintError(constraint->what());
+    }
+
+    inline void Cli::executeExistingOptions() const
+    {
+        for (const auto& it : m_refMap)
+            if (it.second.Exists)
+                it.second.execute(it.second);
+    }
+
+    inline void Cli::executePriorityOptions() const
+    {
+        for (const auto& it : m_priorityMap)
+            if (it.second.Exists)
+                it.second.execute(it.second);
     }
 
     inline void Cli::askInput(Option& option)
@@ -938,21 +928,6 @@ namespace BazPO
         else
             str.append("[").append(value).append("]");
         return str;
-    }
-    namespace _detail
-    {
-        class OptionMismatchException
-            : public std::exception
-        {
-            const char* err = "Tagless options cannot be combined with other options!";
-            const char* what() const noexcept override { return err; };
-        };
-    }
-    void Cli::throwOnMismatch(bool tagless) const
-    {
-        _detail::OptionMismatchException e;
-        if ((ICli::tagless() && normal()) || (!ICli::tagless() && tagless) || (ICli::normal() && tagless))
-            throw e;
     }
 }
 
