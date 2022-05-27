@@ -2,7 +2,7 @@
 # project specific logic here.
 #
 cmake_minimum_required (VERSION 3.12)
-project(BazPO VERSION 0.0.1 DESCRIPTION "BazWare Program Options Argument Parser" HOMEPAGE_URL "https://github.com/karusb/BazPO")
+project(BazPO VERSION 0.2.0 DESCRIPTION "BazWare Program Options Argument Parser" HOMEPAGE_URL "https://github.com/karusb/BazPO")
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 # Specify BuildType if its not specified
@@ -16,7 +16,7 @@ add_library(BazPO INTERFACE)
 
 target_include_directories(
   BazPO
-  INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
 target_compile_features(BazPO INTERFACE cxx_std_14)
