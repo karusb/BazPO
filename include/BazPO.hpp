@@ -366,12 +366,12 @@ namespace BazPO
     Option& Option::constrain(std::pair<T, T> minMaxConstraints) { ConstraintStorage.emplace_back(std::make_shared<MinMaxConstraint<T>>(*this, minMaxConstraints)); return *this; };
     Option& Option::constrain(const std::function<bool(const Option&)>& isSatisfied, const std::string& errorMessage) { ConstraintStorage.emplace_back(std::make_shared<FunctionConstraint>(*this, isSatisfied, errorMessage)); return *this; };
 
-    class EitherMandatory
+    class MutuallyExclusive
         : public MultiConstraint
     {
     public:
         template <typename... Options>
-        explicit EitherMandatory(ICli* po, Option& option1, Option& option2, Options&... rest)
+        explicit MutuallyExclusive(ICli* po, Option& option1, Option& option2, Options&... rest)
             : MultiConstraint(po, option1, option2, rest...)
         {
             makeMandatory(option1, option2, rest...);
@@ -544,7 +544,7 @@ namespace BazPO
         inline void userInputRequired() { m_askInputForMandatoryOptions = true; }
         inline void unexpectedArgumentsAcceptable() { m_exitOnUnexpectedValue = false; }
         template<typename... Options>
-        EitherMandatory& eitherMandatory(Options&... options) { m_multiConstraintStorage.push_back(std::make_shared<EitherMandatory>(this, m_refMap.at(getKey(options))...)); return reinterpret_cast<EitherMandatory&>(*m_multiConstraintStorage.back()); }
+        MutuallyExclusive& mutuallyExclusive(Options&... options) { m_multiConstraintStorage.push_back(std::make_shared<MutuallyExclusive>(this, m_refMap.at(getKey(options))...)); return reinterpret_cast<MutuallyExclusive&>(*m_multiConstraintStorage.back()); }
         Option& constraint(const std::string& key, std::deque<std::string> stringConstraints) { return m_refMap.at(getKey(key)).constrain(stringConstraints); };
         template<typename T>
         Option& constraint(const std::string& key, std::pair<T, T> minMaxConstraints) { return m_refMap.at(getKey(key)).constrain<T>(minMaxConstraints); };

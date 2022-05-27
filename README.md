@@ -39,7 +39,7 @@ BEWARE! BazPO is still under development...
       - [FunctionConstraint](#functionconstraint)
       - [Defining your own constraint](#defining-your-own-constraint)
     - [**MultiConstraints**](#multiconstraints)
-      - [EitherMandatory](#eithermandatory)
+      - [MutuallyExclusive](#mutuallyexclusive)
     - [**Asking For User Input When Mandatory Options Are Not Provided**](#asking-for-user-input-when-mandatory-options-are-not-provided)
     - [**Making Invalid/Expanded Arguments Acceptable**](#making-invalidexpanded-arguments-acceptable)
     - [**Disabling Auto Help**](#disabling-auto-help)
@@ -389,10 +389,10 @@ Constraints are used to restrict the values that can be provided for an option.
 
 - MultiConstraints are able to constrain multiple options at once.
 
-#### EitherMandatory
+#### MutuallyExclusive
 
 - Either one of the mandatory options are accepted as valid input regardless of the other mandatory options.
-- There can only be one option that satisfies EitherMandatory, more than one of these options will not be accepted.
+- There can only be one option that satisfies MutuallyExclusive, more than one of these options will not be accepted.
 - For example: A program requires either a file input, or a raw data input
 
 **Example (1)**
@@ -406,7 +406,7 @@ Constraints are used to restrict the values that can be provided for an option.
         /* do data operations */
         }, "--data", "Raw data input");
 
-    EitherMandatory eithers(&po, optiona, optionb);
+    MutuallyExclusive exclusivity(&po, optiona, optionb);
 ```
 
 **Example (2)**
@@ -416,10 +416,10 @@ Constraints are used to restrict the values that can be provided for an option.
     ValueOption optiona(&po, "-f", "--file", "File input");
     ValueOption optionb(&po, "-d", "--data", "Raw data input");
 
-    EitherMandatory eithers(&po, optiona, optionb);
+    MutuallyExclusive exclusivity(&po, optiona, optionb);
     
     po.parse();
-    if(&optiona == eithers.satisfiedOption())
+    if(&optiona == exclusivity.satisfiedOption())
     {
         /* do file operations */
     }
@@ -435,11 +435,11 @@ Constraints are used to restrict the values that can be provided for an option.
     Cli po(argc, argv);
     auto& file = po.add("-f", "--file", "File input");
     po.add("-d", "--data", "Raw data input");
-    auto& eithers = po.eitherMandatory("-f", "-d");
+    auto& exclusivity = po.mutuallyExclusive("-f", "-d");
 
     po.parse();
 
-    if(&file == eithers.satisfiedOption())
+    if(&file == exclusivity.satisfiedOption())
     {
         /* do file operations */
     }

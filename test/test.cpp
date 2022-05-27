@@ -836,7 +836,7 @@ TEST_F(ProgramOptionsTest, all_option_combinations_with_reference_succesful)
     }
 }
 
-TEST_F(ProgramOptionsTest, either_mandatory_runs_normally_when_one_mandatory_option_is_provided)
+TEST_F(ProgramOptionsTest, mutually_exclusive_runs_normally_when_one_mandatory_option_is_provided)
 {
     int argc = 7;
     const char* argv[7]{ {"programoptions"}, {"-c"}, {"Aoption"}, {"-c"}, {"Boption"}, {"-c"}, {"Coption"} };
@@ -848,7 +848,7 @@ TEST_F(ProgramOptionsTest, either_mandatory_runs_normally_when_one_mandatory_opt
         po.add("-c", "--charlie", "Option C");
         po.add("-d", "--delta", "Option D");
 
-        auto& eithers = po.eitherMandatory("-a", "-b", "-c");
+        auto& exclusivity = po.mutuallyExclusive("-a", "-b", "-c");
 
         po.parse();
 
@@ -856,7 +856,7 @@ TEST_F(ProgramOptionsTest, either_mandatory_runs_normally_when_one_mandatory_opt
         EXPECT_FALSE(po.option("-a").exists());
         ExpectOptionExistsWithValues(po, "-c", { "Aoption", "Boption", "Coption" });
 
-        EXPECT_EQ(&po.option("-c"), eithers.satisfiedOption());
+        EXPECT_EQ(&po.option("-c"), exclusivity.satisfiedOption());
     }
     {
         Cli po{ argc, argv };
@@ -865,7 +865,7 @@ TEST_F(ProgramOptionsTest, either_mandatory_runs_normally_when_one_mandatory_opt
         ValueOption optionc(&po, "-c", "--charlie", "Option C");
         ValueOption optiond(&po, "-d", "--delta", "Option D");
 
-        EitherMandatory eithers(&po, optiona, optionb, optionc);
+        MutuallyExclusive exclusivity(&po, optiona, optionb, optionc);
 
         po.parse();
 
@@ -873,11 +873,11 @@ TEST_F(ProgramOptionsTest, either_mandatory_runs_normally_when_one_mandatory_opt
         EXPECT_FALSE(optionb.exists());
         ExpectOptionExistsWithValues(optionc, { "Aoption", "Boption", "Coption" });
 
-        EXPECT_EQ(&optionc, eithers.satisfiedOption());
+        EXPECT_EQ(&optionc, exclusivity.satisfiedOption());
     }
 }
 
-TEST_F(ProgramOptionsTest, either_mandatory_exits_if_none_of_the_parameters_given)
+TEST_F(ProgramOptionsTest, mutually_exclusive_exits_if_none_of_the_parameters_given)
 {
     int argc = 3;
     const char* argv[3]{ {"programoptions"}, {"-c"}, {"Coption"} };
@@ -886,12 +886,12 @@ TEST_F(ProgramOptionsTest, either_mandatory_exits_if_none_of_the_parameters_give
     ValueOption optionb(&po, "-b", "--bravo", "Option B");
     ValueOption optionc(&po, "-c", "--charlie", "Option C");
 
-    EitherMandatory eithers(&po, optiona, optionb);
+    MutuallyExclusive exclusivity(&po, optiona, optionb);
 
     EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
 }
 
-TEST_F(ProgramOptionsTest, either_mandatory_exits_if_all_of_the_parameters_given)
+TEST_F(ProgramOptionsTest, mutually_exclusive_exits_if_all_of_the_parameters_given)
 {
     int argc = 7;
     const char* argv[7]{ {"programoptions"}, {"-a"}, {"val"}, {"-b"}, {"val"}, {"-c"}, {"val"} };
@@ -900,12 +900,12 @@ TEST_F(ProgramOptionsTest, either_mandatory_exits_if_all_of_the_parameters_given
     ValueOption optionb(&po, "-b", "--bravo", "Option B");
     ValueOption optionc(&po, "-c", "--charlie", "Option C");
 
-    EitherMandatory eithers(&po, optiona, optionb, optionc);
+    MutuallyExclusive exclusivity(&po, optiona, optionb, optionc);
 
     EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
 }
 
-TEST_F(ProgramOptionsTest, either_mandatory_exits_if_one_of_the_parameters_given_but_another_mandatory_not)
+TEST_F(ProgramOptionsTest, mutually_exclusive_exits_if_one_of_the_parameters_given_but_another_mandatory_not)
 {
     int argc = 7;
     const char* argv[7]{ {"programoptions"}, {"-a"}, {"Aoption"}, {"-a"}, {"Boption"}, {"-a"}, {"Coption"} };
@@ -914,12 +914,12 @@ TEST_F(ProgramOptionsTest, either_mandatory_exits_if_one_of_the_parameters_given
     ValueOption optionb(&po, "-b", "--bravo", "Option B");
     ValueOption optionc(&po, "-c", "--charlie", "Option C", "", true);
 
-    EitherMandatory eithers(&po, optiona, optionb);
+    MutuallyExclusive exclusivity(&po, optiona, optionb);
 
     EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
 }
 
-TEST_F(ProgramOptionsTest, either_mandatory_does_not_exit_when_user_input_empty_for_one) 
+TEST_F(ProgramOptionsTest, mutually_exclusive_does_not_exit_when_user_input_empty_for_one)
 {
     int argc = 1;
     const char* argv[] = { "programoptions" };
@@ -927,7 +927,7 @@ TEST_F(ProgramOptionsTest, either_mandatory_does_not_exit_when_user_input_empty_
     Cli po(argc, argv);
     auto& a = po.add("-a", "--alpha", "Option A");
     auto& b = po.add("-b", "--bravo", "Option B");
-    EitherMandatory eitherMandatory(&po, a, b);
+    MutuallyExclusive exclusivity(&po, a, b);
 
     po.changeIO(&std::cout, &str);
     po.userInputRequired();
@@ -937,7 +937,7 @@ TEST_F(ProgramOptionsTest, either_mandatory_does_not_exit_when_user_input_empty_
     EXPECT_FALSE(a.exists());
 }
 
-TEST_F(ProgramOptionsTest, either_mandatory_exits_when_user_input_empty_for_both) 
+TEST_F(ProgramOptionsTest, mutually_exclusive_exits_when_user_input_empty_for_both) 
 {
     int argc = 1;
     const char* argv[] = { "programoptions" };
@@ -945,7 +945,7 @@ TEST_F(ProgramOptionsTest, either_mandatory_exits_when_user_input_empty_for_both
     Cli po(argc, argv);
     auto& a = po.add("-a", "--alpha", "Option A");
     auto& b = po.add("-b", "--bravo", "Option B");
-    EitherMandatory eitherMandatory(&po, a, b);
+    MutuallyExclusive exclusivity(&po, a, b);
 
     po.changeIO(&std::cout, &str);
     po.userInputRequired();
