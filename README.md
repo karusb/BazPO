@@ -9,7 +9,7 @@ BazPO is a flexible C++14 single header program argument parsing library. \
 \
 BazPO is very easy to use with multiple highly readable syntax that aims to keep your main function simple. \
 Apart from other argument parsers BazPO does not enforce static type checking rather types are enforced when used therefore making the option definitions simpler. \
-BazPO can simply be included as a header to the program without any linking. \
+BazPO can simply be included as a header to the program without any linking.
 
 BEWARE! BazPO is still under development...
 **[Download BazPO Here](https://github.com/karusb/BazPO/archive/refs/tags/v0.1.1.zip)**\
