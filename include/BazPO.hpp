@@ -75,7 +75,6 @@ namespace BazPO
         int getNextId() { ++m_taglessOptionNextId; return m_taglessOptionNextId; }
         int getCurrentId() const { return m_taglessOptionNextId; }
 
-
     private:
         int m_taglessOptionNextId = -1;
 
@@ -343,12 +342,7 @@ namespace BazPO
         virtual bool satisfied(Option& foundOption) = 0;
         virtual std::string what() = 0;
 
-        void makeMandatory(Option& option1) const { option1.mandatory(); }
-        template <typename... Options>
-        void makeMandatory(Option& option1, Options&... rest) const { makeMandatory(option1); makeMandatory(rest...); }
-        void makeNotMandatory(Option& option1) const { option1.notMandatory(); }
-        template <typename... Options>
-        void makeNotMandatory(Option& option1, Options&... rest) const { makeNotMandatory(option1); makeNotMandatory(rest...); }
+        bool isMandatory(Option& option) const { return option.Mandatory; }
         std::string parameterSyntax(const Option& option) const { return cli->parameterSyntax(option.Parameter, option.Mandatory); }
 
         std::deque<std::pair<Option*, bool>> relativeOptions;
@@ -373,9 +367,7 @@ namespace BazPO
         template <typename... Options>
         explicit MutuallyExclusive(ICli* po, Option& option1, Option& option2, Options&... rest)
             : MultiConstraint(po, option1, option2, rest...)
-        {
-            makeMandatory(option1, option2, rest...);
-        }
+        {}
 
         Option* satisfiedOption() const { return chosenOption; }
     protected:
@@ -391,10 +383,9 @@ namespace BazPO
                 {
                     option.second = true;
                     chosenOption = option.first;
-                    setRelativesNotMandatory();
                 }
             }
-            return chosenOption != nullptr;
+            return chosenOption != nullptr || !isAnyMandatory();
         }
 
         virtual std::string what() override
@@ -412,11 +403,12 @@ namespace BazPO
         }
 
     private:
-
-        void setRelativesNotMandatory()
+        bool isAnyMandatory()
         {
             for (auto& option : relativeOptions)
-                makeNotMandatory(*option.first);
+                if (isMandatory(*option.first))
+                    return true;
+            return false;
         }
 
         Option* chosenOption = nullptr;

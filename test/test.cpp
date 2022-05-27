@@ -877,7 +877,7 @@ TEST_F(ProgramOptionsTest, mutually_exclusive_runs_normally_when_one_mandatory_o
     }
 }
 
-TEST_F(ProgramOptionsTest, mutually_exclusive_exits_if_none_of_the_parameters_given)
+TEST_F(ProgramOptionsTest, mutually_exclusive_does_not_exit_if_none_of_the_parameters_given)
 {
     int argc = 3;
     const char* argv[3]{ {"programoptions"}, {"-c"}, {"Coption"} };
@@ -885,6 +885,21 @@ TEST_F(ProgramOptionsTest, mutually_exclusive_exits_if_none_of_the_parameters_gi
     ValueOption optiona(&po, "-a", "--alpha", "Option A");
     ValueOption optionb(&po, "-b", "--bravo", "Option B");
     ValueOption optionc(&po, "-c", "--charlie", "Option C");
+
+    MutuallyExclusive exclusivity(&po, optiona, optionb);
+    po.parse();
+    ExpectOptionExistsWithValues(optionc, { "Coption" });
+}
+
+TEST_F(ProgramOptionsTest, mutually_exclusive_exits_if_none_of_the_parameters_given_with_mandatory)
+{
+    int argc = 3;
+    const char* argv[3]{ {"programoptions"}, {"-c"}, {"Coption"} };
+    Cli po{ argc, argv };
+    ValueOption optiona(&po, "-a", "--alpha", "Option A");
+    optiona.mandatory();
+    ValueOption optionb(&po, "-b", "--bravo", "Option B");
+
 
     MutuallyExclusive exclusivity(&po, optiona, optionb);
 
@@ -930,14 +945,15 @@ TEST_F(ProgramOptionsTest, mutually_exclusive_does_not_exit_when_user_input_empt
     MutuallyExclusive exclusivity(&po, a, b);
 
     po.changeIO(&std::cout, &str);
-    po.userInputRequired();
+    po.askInput(a);
+    po.askInput(b);
     po.parse();
 
     ExpectOptionExistsWithValues(b, { "input4 input5 input6"});
     EXPECT_FALSE(a.exists());
 }
 
-TEST_F(ProgramOptionsTest, mutually_exclusive_exits_when_user_input_empty_for_both) 
+TEST_F(ProgramOptionsTest, mutually_exclusive_does_not_exit_when_user_input_empty_for_both)
 {
     int argc = 1;
     const char* argv[] = { "programoptions" };
@@ -948,7 +964,28 @@ TEST_F(ProgramOptionsTest, mutually_exclusive_exits_when_user_input_empty_for_bo
     MutuallyExclusive exclusivity(&po, a, b);
 
     po.changeIO(&std::cout, &str);
-    po.userInputRequired();
+    po.askInput(a);
+    po.askInput(b);
+    po.parse();
+
+    EXPECT_FALSE(a.exists());
+    EXPECT_FALSE(b.exists());
+}
+
+TEST_F(ProgramOptionsTest, mutually_exclusive_exits_when_user_input_empty_for_both_with_mandatory_option) 
+{
+    int argc = 1;
+    const char* argv[] = { "programoptions" };
+    std::stringstream str("\n\n");
+    Cli po(argc, argv);
+    auto& a = po.add("-a", "--alpha", "Option A");
+    auto& b = po.add("-b", "--bravo", "Option B").mandatory();
+
+    MutuallyExclusive exclusivity(&po, a, b);
+
+    po.changeIO(&std::cout, &str);
+    po.askInput(a);
+    po.askInput(b);
 
     EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
 }
