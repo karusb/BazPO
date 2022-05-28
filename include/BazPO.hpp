@@ -325,15 +325,6 @@ namespace BazPO
             addOptions(option1, option2, rest...);
         }
 
-        virtual std::deque<Option*> satisfiedOptions()
-        {
-            std::deque<Option*> ret;
-            for (auto& pair : relativeOptions)
-                if (pair.second)
-                    ret.emplace_back(pair.first);
-            return ret;
-        }
-
         virtual bool satisfied(Option& foundOption) = 0;
         virtual std::string what() = 0;
 
@@ -756,7 +747,7 @@ namespace BazPO
                 if (option->second.ExistsCount == option->second.MaxValueCount)
                     ++taglessId;
             }
-            else if (m_exitOnUnexpectedValue && (taglessId > getCurrentId() || lastOption->MaxValueCount < lastOption->Values.size()))
+            else if (m_exitOnUnexpectedValue && (taglessId > getCurrentId() || (lastOption!= nullptr && (lastOption->MaxValueCount < lastOption->Values.size()))))
                 unknownArgParsingError(m_argv[i]);
         }
     }
