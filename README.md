@@ -12,7 +12,7 @@ Apart from other argument parsers BazPO does not enforce static type checking ra
 BazPO can simply be included as a header to the program without any linking.
 
 BEWARE! BazPO is still under development...
-**[Download BazPO Here](https://github.com/karusb/BazPO/archive/refs/tags/v0.1.1.zip)**\
+**[Download BazPO Here](https://github.com/karusb/BazPO/archive/refs/tags/v0.2.0.zip)**\
 *BazPO is licensed under MIT license, so it can be used as is without any restrictions. However, do not remove license and copyright information from the header.*
 
 ## **Contents**
@@ -21,6 +21,7 @@ BEWARE! BazPO is still under development...
   - [**Contents**](#contents)
   - [**BazPO Features**](#bazpo-features)
   - [**Getting Started**](#getting-started)
+    - [Installing from Source with CMake](#installing-from-source-with-cmake)
     - [Functions / Usage](#functions--usage)
     - [Examples](#examples)
       - [Example (1)](#example-1)
@@ -29,9 +30,14 @@ BEWARE! BazPO is still under development...
   - [**Options**](#options)
     - [Option Functions](#option-functions)
     - [ValueOption](#valueoption)
+    - [FlagOption](#flagoption)
     - [MultiOption](#multioption)
     - [TaglessOption](#taglessoption)
-    - [FunctionOption/FunctionMultiOption/FunctionTaglessOption](#functionoptionfunctionmultioptionfunctiontaglessoption)
+    - [FunctionOption/FunctionFlag/FunctionMultiOption/FunctionTaglessOption](#functionoptionfunctionflagfunctionmultioptionfunctiontaglessoption)
+      - [FunctionOption](#functionoption)
+      - [FunctionFlag](#functionflag)
+      - [FunctionMultiOption](#functionmultioption)
+      - [FunctionTaglessOption](#functiontaglessoption)
   - [**Customizations**](#customizations)
     - [**Constraints**](#constraints)
       - [StringConstraint](#stringconstraint)
@@ -67,7 +73,48 @@ BEWARE! BazPO is still under development...
 - Download BazPO.hpp source code and add to your project folder
 - Include the downloaded header to your main program
 - Library will be compiled along with your C++14 program
-- **[Download BazPO Here](https://github.com/karusb/BazPO/archive/refs/tags/v0.1.1.zip)**
+- **[Download BazPO Here](https://github.com/karusb/BazPO/archive/refs/tags/v0.2.0.zip)**
+
+### Installing from Source with CMake
+
+**Installing BazPO to your project**
+
+- BazPO can be installed using CMake, package configuration will be made available.
+- Run the following commands in the BazPO directory
+
+```sh
+cmake -DCMAKE_INSTALL_PREFIX:PATH=/your/installation/path
+cmake --build . --target install
+```
+
+- Then BazPO can be used in the project like the example below
+
+```CMake
+# CMakeList.txt : CMake project for CMake, include source and define
+# project specific logic here.
+#
+cmake_minimum_required (VERSION 3.12)
+
+find_package(BazPO CONFIG REQUIRED)
+add_executable(example main.cpp)
+
+target_link_libraries(example PUBLIC BazPO::BazPO)
+```
+
+**Embedding BazPO to your project via CMakeLists.txt**
+
+- Add the following commands to your CMakeLists.txt
+
+```CMake
+include(FetchContent)
+FetchContent_Declare(
+  BazPO
+  GIT_REPOSITORY https://github.com/karusb/BazPO.git
+  GIT_TAG        <version_tag>
+)
+
+FetchContent_MakeAvailable(BazPO)
+```
 
 ### Functions / Usage
 
@@ -78,15 +125,17 @@ BEWARE! BazPO is still under development...
 5. Read your values
 
 - **Adding an option**
-  - Using add() [`see example 1`](#example-1)
-  - Defining the option by yourself [`see example 3`](#example-3)
+  - Using cli.option() [`see example 1`](#example-1)
+  - Using cli.tagless() [`see example 2`](#example-2)
+  - Using cli.flag() [`see example 1`](#example-1)
+  - Defining the option class by yourself [`see example 3`](#example-3)
 
 - **Customizing an option**
   - Refer to [`Customizations`](#customizations) header.
   
 - **Reading values**
-  - Calling option(tag) with the tag you specified to get the option [`see example 1`](#example-1)
-  - Calling value(tag)/values(tag) with the relevant tag to get option values directly [`see example 2`](#example-2)
+  - Calling cli.getOption(tag) with the tag you specified to get the option [`see example 1`](#example-1)
+  - Calling cli.value(tag)/cli.values(tag) with the relevant tag to get option values directly [`see example 2`](#example-2)
   - Directly reading from the defined object [`see example 3`](#example-3)
   - Tagless options have an internal tag, which is the order number they are added in the program [`see example 2`](#example-2)
 
@@ -103,12 +152,12 @@ int main(int argc, const char* argv[])
 {
     Cli po(argc, argv);
 
-    po.add("-a", "--alpha", "Option A").mandatory();
-    po.add("-b", [&](const Option&) { /* do something */ }, "--bravo", "Option B");
+    po.option("-a", "--alpha", "Option A").mandatory();
+    po.option("-b", [&](const Option&) { /* do something */ }, "--bravo", "Option B");
 
     po.parse();
 
-    auto aoption = po.option("-a");
+    auto aoption = po.getOption("-t");
 
     std::cout << "EXISTS:" << aoption.exists() << std::endl;
     std::cout << "INT:" << aoption.valueAs<int>() << std::endl;
@@ -145,14 +194,14 @@ using namespace BazPO;
 int main(int argc, const char* argv[])
 {
     Cli po(argc, argv);
-    po.add(5);
-    po.add();
+    po.tagless(5);
+    po.tagless();
     po.parse();
 
-    for(const auto& values : po.option("0").values())
+    for(const auto& values : po.getOption("0").values())
         std::cout << values << std::endl;
 
-    std::cout << po.option("1").value() << std::endl;
+    std::cout << po.getOption("1").value() << std::endl;
 }
 ```
 
@@ -186,7 +235,7 @@ int main(int argc, const char* argv[])
 {
     Cli po(argc, argv);
 
-    ValueOption optionA(&po, "-a", "--alpha", "Option A", "", true);
+    ValueOption optionA(&po, "-t", "--tag", "tag description", "", true);
     FunctionOption optionB(&po, "-b", [&](const Option& option) {
         /* do something */
         }, "--bravo", "Option B");
@@ -228,7 +277,7 @@ BOOL:1
     - **value()** -> returns the raw argument value
     - **valueAs<T>** -> converts the raw argument to the given type
     - **values()** / **valuesAs<T>()** -> same as their value counterpart but returns all provided values
-    - **execute()** -> only available with [`Function Options`](#FunctionOptionFunctionMultiOptionFunctionTaglessOption)
+    - **execute()** -> only available with [`Function Options`](#functionoptionfunctionflagfunctionmultioptionfunctiontaglessoption)
 
 ### ValueOption
 
@@ -237,7 +286,49 @@ BOOL:1
 Below argument list is valid and only one value is accepted after the tag.
 
 ```sh
-myprogram -a value1 -a value2 -b
+myprogram -a value1 -a value2
+```
+
+**Example (1)**
+
+```c++
+    BazPO::Cli po{ argc, argv };
+    po.option("-t", "--tag", "tag description", "defaultValue", OptionType::Value);
+    po.parse();
+```
+
+**Example (2)**
+
+```c++
+    BazPO::Cli po{ argc, argv };
+    BazPO::ValueOption(&po, "-t", "--tag", "tag description", "defaultValue");
+    po.parse();
+```
+
+### FlagOption
+
+- Basic flag that can have no value.
+
+Below argument list is valid and no value is accepted after the tag.
+
+```sh
+myprogram -a
+```
+
+**Example (1)**
+
+```c++
+    BazPO::Cli po{ argc, argv };
+    po.flag("-f", "flag description", "--flag");
+    po.parse();
+```
+
+**Example (2)**
+
+```c++
+    BazPO::Cli po{ argc, argv };
+    FlagOption(&po, "-f", "flag description", "--flag");
+    po.parse();
 ```
 
 ### MultiOption
@@ -249,7 +340,23 @@ myprogram -a value1 -a value2 -b
 Below argument list is valid for MultiOption only.
 
 ```sh
-myprogram -a value1 value2 value3 -a value4 -b
+myprogram -a value1 value2 value3 -a value4
+```
+
+**Example (1)**
+
+```c++
+    BazPO::Cli po{ argc, argv };
+    po.option("-t", "--tag", "tag description", "defaultValue", OptionType::MultiValue);
+    po.parse();
+```
+
+**Example (2)**
+
+```c++
+    BazPO::Cli po{ argc, argv };
+    MultiOption(&po, "-t", "--tag", "tag description", "defaultValue");
+    po.parse();
 ```
 
 ### TaglessOption
@@ -263,13 +370,134 @@ myprogram -a value1 value2 value3 -a value4 -b
 myprogram value1 value2 value3 value4
 ```
 
-### FunctionOption/FunctionMultiOption/FunctionTaglessOption
+**Example (1)**
+
+```c++
+    BazPO::Cli po{ argc, argv };
+    size_t maxValueCount = 1;
+    po.tagless(maxValueCount, "value description", "defaultValue");
+    po.parse();
+```
+
+**Example (2)**
+
+```c++
+    BazPO::Cli po{ argc, argv };
+    size_t maxValueCount = 1;
+    TaglessOption(&po, maxValueCount, "value description", "defaultValue");
+    po.parse();
+```
+
+### FunctionOption/FunctionFlag/FunctionMultiOption/FunctionTaglessOption
 
 - Provided function will be executed if the given tag is provided as an argument with or without a value.
 - Other options are already parsed when the function is executed so they can be read in the given function.
-- FunctionOption is parsed like [`ValueOption`](#ValueOption).
-- FunctionMultiOption is parsed like [`MultiOption`](#MultiOption).
-- FunctionTaglessOption is parsed like [`TaglessOption`](#TaglessOption).
+
+#### FunctionOption
+
+- Parsed like [`ValueOption`](#valueoption).
+  
+**Example (1)**
+
+```c++
+    BazPO::Cli po{ argc, argv };
+    po.option("-t", [&](const Option& option) 
+        { 
+            /* will be executed if option exists */
+        } , "--tag", "tag description", "defaultValue", OptionType::Value);
+    po.parse();
+```
+
+**Example (2)**
+
+```c++
+    BazPO::Cli po{ argc, argv };
+    BazPO::FunctionOption option(&po, "-t", [&](const Option& option) 
+        {
+            /* will be executed if option exists */
+        }, "--tag", "tag description", "defaultValue");
+    po.parse();
+```
+
+#### FunctionFlag
+
+- Parsed like [`FlagOption`](#flagoption).
+
+**Example (1)**
+
+```c++
+    BazPO::Cli po{ argc, argv };
+    po.flag("-t", [&](const Option& option) 
+        { 
+            /* will be executed if option exists */
+        } , "tag description", "--tag");
+    po.parse();
+```
+
+**Example (2)**
+
+```c++
+    BazPO::Cli po{ argc, argv };
+    BazPO::FunctionFlag option(&po, "-t", [&](const Option& option) 
+        {
+            /* will be executed if option exists */
+        }, "tag description", "--tag");
+    po.parse();
+```
+
+#### FunctionMultiOption
+
+- Parsed like [`MultiOption`](#multioption).
+
+**Example (1)**
+
+```c++
+    BazPO::Cli po{ argc, argv };
+    po.option("-t", [&](const Option& option) 
+        { 
+            /* will be executed if option exists */
+        } , "--tag", "tag description", "defaultValue", OptionType::MultiValue);
+    po.parse();
+```
+
+**Example (2)**
+
+```c++
+    BazPO::Cli po{ argc, argv };
+    BazPO::FunctionMultiOption option(&po, "-t", [&](const Option& option) 
+        {
+            /* will be executed if option exists */
+        }, "--tag", "tag description", "defaultValue");
+    po.parse();
+```
+
+#### FunctionTaglessOption
+
+- Parsed like [`TaglessOption`](#taglessoption).
+
+**Example (1)**
+
+```c++
+    BazPO::Cli po{ argc, argv };
+    size_t maxValueCount = 1;
+    po.tagless([&](const Option& option) 
+        { 
+            /* will be executed if option exists */
+        }, maxValueCount, "value description", "defaultValue");
+    po.parse();
+```
+
+**Example (2)**
+
+```c++
+    BazPO::Cli po{ argc, argv };
+    size_t maxValueCount = 1;
+    BazPO::FunctionTaglessOption option(&po, [&](const Option& option) 
+        {
+            /* will be executed if option exists */
+        }, maxValueCount, "value description", "defaultValue");
+    po.parse();
+```
 
 ## **Customizations**
 
@@ -285,9 +513,9 @@ Constraints are used to restrict the values that can be provided for an option.
 **Example (1)**
 
 ```c++
-    Cli po{ argc, argv };
+    BazPO::Cli po{ argc, argv };
 
-    StringConstraint constraint(po.add(3).mandatory(), { "Config1", "Config2", "Config3" });
+    BazPO::StringConstraint constraint(po.tagless(3).mandatory(), { "Config1", "Config2", "Config3" });
 
     po.parse();
 ```
@@ -295,9 +523,9 @@ Constraints are used to restrict the values that can be provided for an option.
 **Example (2)**
 
 ```c++
-    Cli po{ argc, argv };
-    po.add("-a", "--alpha", "Option A").mandatory();
-    po.constraint("-a", { "Config1", "Config2", "Config3" });
+    BazPO::Cli po{ argc, argv };
+    po.option("-t", "--tag", "tag description").mandatory();
+    po.constraint("-t", { "Config1", "Config2", "Config3" });
 
     po.parse();
 ```
@@ -310,18 +538,18 @@ Constraints are used to restrict the values that can be provided for an option.
 **Example (1)**
 
 ```c++
-    Cli po{ argc, argv };
-    ValueOption optiona(&po, "-a", "--alpha", "Option A", "", true);
-    MinMaxConstraint<double> constraint(optiona, { 0.00001, 1.95 });
+    BazPO::Cli po{ argc, argv };
+    BazPO::ValueOption optiona(&po, "-t", "--tag", "tag description", "", true);
+    BazPO::MinMaxConstraint<double> constraint(optiona, { 0.00001, 1.95 });
     po.parse();
 ```
 
 **Example (2)**
 
 ```c++
-    Cli po{ argc, argv };
-    po.add("-a", "--alpha", "Option A").mandatory();
-    po.constraint<double>("-a", { 0.00001, 1.95 });
+    BazPO::Cli po{ argc, argv };
+    po.option("-t", "--tag", "tag description").mandatory();
+    po.constraint<double>("-t", { 0.00001, 1.95 });
 
     po.parse();
 ```
@@ -332,24 +560,36 @@ Constraints are used to restrict the values that can be provided for an option.
 - Provided function will be called for each value provided for the option it constrains.
 - If the function returns false, provided message will be displayed with the value the contraint failed on.
   
-**Example**
+**Example (1)**
 
 ```c++
-    Cli po{ argc, argv };
-    MultiOption optiona(&po, "-a", "--alpha", "Option A");
+    BazPO::Cli po{ argc, argv };
+    BazPO::MultiOption optiona(&po, "-t", "--tag", "tag description");
 
-    FunctionConstraint constraint(optiona, [](const Option& option) -> bool {
-        if ("abc" != option.valueAs<std::string>())
-            return false;
-        return true;
+    BazPO::FunctionConstraint constraint(optiona, [](const Option& option) -> bool 
+        {
+            return ("abc" != option.valueAs<std::string>())
         }, "value must be abc");
 
+```
+
+**Example (2)**
+
+```c++
+    BazPO::Cli po{ argc, argv };
+    po.option("-t", "--tag", "tag description").mandatory();
+    po.constraint("-t",  [](const Option& option) -> bool 
+        {
+            return ("abc" != option.valueAs<std::string>())
+        }, "value must be abc");
+
+    po.parse();
 ```
 
 #### Defining your own constraint
 
 - Custom constraints can be added to an option if existing constraints does not meet your needs.
-- Before implementing your own constraint, have a look at [`FunctionConstraint`](#FunctionConstraint), which achieves the same functionality.
+- Before implementing your own constraint, have a look at [`FunctionConstraint`](#functionconstraint), which achieves the same functionality.
 - Overridden **satisfied()** function is called everytime a value is added.
 - Overridden **what()** function should return what was expected, to show user a descriptive message.
 
@@ -376,8 +616,8 @@ Constraints are used to restrict the values that can be provided for an option.
         };
     };
 
-    Cli po{ argc, argv };
-    ValueOption optiona(&po, "-a", "--alpha", "Option A", "", true);
+    BazPO::Cli po{ argc, argv };
+    BazPO::ValueOption optiona(&po, "-t", "--tag", "tag description", "", true);
 
     CustomConstraint constraint(optiona);
     CustomConstraint constraintB(po.add("-b", "--bravo", "Option B"));
@@ -398,25 +638,25 @@ Constraints are used to restrict the values that can be provided for an option.
 **Example (1)**
 
 ```c++
-    Cli po(argc, argv);
-    FunctionOption optiona(&po, "-f",[&](const Option& option) {
+    BazPO::Cli po(argc, argv);
+    BazPO::FunctionOption optiona(&po, "-f",[&](const Option& option) {
         /* do file operations */
         }, "--file", "File input");
-    FunctionOption optionb(&po, "-d",[&](const Option& option) {
+    BazPO::FunctionOption optionb(&po, "-d",[&](const Option& option) {
         /* do data operations */
         }, "--data", "Raw data input");
 
-    MutuallyExclusive exclusivity(&po, optiona, optionb);
+    BazPO::MutuallyExclusive exclusivity(&po, optiona, optionb);
 ```
 
 **Example (2)**
 
 ```c++
-    Cli po(argc, argv);
-    ValueOption optiona(&po, "-f", "--file", "File input");
-    ValueOption optionb(&po, "-d", "--data", "Raw data input");
+    BazPO::Cli po(argc, argv);
+    BazPO::ValueOption optiona(&po, "-f", "--file", "File input");
+    BazPO::ValueOption optionb(&po, "-d", "--data", "Raw data input");
 
-    MutuallyExclusive exclusivity(&po, optiona, optionb);
+    BazPO::MutuallyExclusive exclusivity(&po, optiona, optionb);
     
     po.parse();
     if(&optiona == exclusivity.satisfiedOption())
@@ -432,9 +672,9 @@ Constraints are used to restrict the values that can be provided for an option.
 **Example (3)**
 
 ```c++
-    Cli po(argc, argv);
-    auto& file = po.add("-f", "--file", "File input");
-    po.add("-d", "--data", "Raw data input");
+    BazPO::Cli po(argc, argv);
+    auto& file = po.option("-f", "--file", "File input");
+    auto& data = po.option("-d", "--data", "Raw data input");
     auto& exclusivity = po.mutuallyExclusive("-f", "-d");
 
     po.parse();
@@ -457,7 +697,7 @@ Constraints are used to restrict the values that can be provided for an option.
 **Example**
 
 ```c++
-    Cli po(argc, argv);
+    BazPO::Cli po(argc, argv);
     /* your options */ 
     po.userInputRequired();
     po.parse();
@@ -470,8 +710,8 @@ Constraints are used to restrict the values that can be provided for an option.
 **Example**
 
 ```c++
-    Cli po(argc, argv);
-    po.add(3);
+    BazPO::Cli po(argc, argv);
+    po.tagless(3);
     po.unexpectedArgumentsAcceptable();
     po.parse();
 ```
@@ -495,8 +735,8 @@ Constraints are used to restrict the values that can be provided for an option.
 **Example (1)**
 
 ```c++
-    Cli po{ argc, argv };
-    ValueOption optiona(&po, "-a");
+    BazPO::Cli po{ argc, argv };
+    BazPO::ValueOption optiona(&po, "-t");
     optiona.prioritize();
     po.parse();
 ```
@@ -504,7 +744,7 @@ Constraints are used to restrict the values that can be provided for an option.
 **Example (2)**
 
 ```c++
-    Cli po{ argc, argv };
-    po.add("-a").prioritize();
+    BazPO::Cli po{ argc, argv };
+    po.option("-t").prioritize();
     po.parse();
 ```

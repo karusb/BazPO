@@ -36,12 +36,18 @@ SOFTWARE.
 #include <sstream>
 #include <iostream>
 #include <iomanip>
+#include <algorithm>
 
 namespace BazPO
 {
     class Option;
     class Constraint;
     class MultiConstraint;
+    enum class OptionType
+    {
+        Value,
+        MultiValue
+    };
     class ICli
     {
     public:
@@ -50,15 +56,19 @@ namespace BazPO
         ICli(const ICli&) = delete;
 
         // Value or Multi Option
-        virtual Option& add(const std::string& option, const std::string& secondOption = "", const std::string& description = "", const std::string& defaultValue = "", bool multipleOptions = false, size_t maxValueCount = 1) = 0;
-        // Tagless Option
-        virtual Option& add(size_t valueCount = 1, const std::string& description = "", const std::string& defaultValue = "") = 0;
-        // Function Tagless Option
-        virtual Option& add(const std::function<void(const Option&)>& onExists, size_t valueCount = 1, const std::string& description = "", const std::string& defaultValue = "") = 0;
+        virtual Option& option(const std::string& option, const std::string& secondOption = "", const std::string& description = "", const std::string& defaultValue = "", OptionType optionType = OptionType::Value, size_t maxValueCount = SIZE_MAX) = 0;
         // Function Value or Function Multi Option
-        virtual Option& add(const std::string& option, const std::function<void(const Option&)>& onExists, const std::string& secondOption = "", const std::string& description = "", const std::string& defaultValue = "", bool multipleOptions = false, size_t maxValueCount = 1) = 0;
+        virtual Option& option(const std::string& option, const std::function<void(const Option&)>& onExists, const std::string& secondOption = "", const std::string& description = "", const std::string& defaultValue = "", OptionType optionType = OptionType::Value, size_t maxValueCount = SIZE_MAX) = 0;
+        // Flag Option
+        virtual Option& flag(const std::string& option, const std::string& description = "", const std::string& secondOption = "") = 0;
+        // Function Flag Option
+        virtual Option& flag(const std::string& option, const std::function<void(const Option&)>& onExists, const std::string& description = "", const std::string& secondOption = "") = 0;
+        // Tagless Option
+        virtual Option& tagless(size_t valueCount = 1, const std::string& description = "", const std::string& defaultValue = "") = 0;
+        // Function Tagless Option
+        virtual Option& tagless(const std::function<void(const Option&)>& onExists, size_t valueCount = 1, const std::string& description = "", const std::string& defaultValue = "") = 0;
         // Any Option Add
-        virtual void add(Option& option) = 0;
+        virtual void option(Option& option) = 0;
         // Prioritize Option
         virtual Option& prioritize(const std::string& key) = 0;
         // Mandatory Option
@@ -93,6 +103,7 @@ namespace BazPO
             // Tagless
             Unidentified
         };
+
         template <typename T>
         std::pair<T, bool> valueAs(const std::string& value)
         {
@@ -100,9 +111,7 @@ namespace BazPO
             T v;
             ss << value;
             ss >> v;
-            if (ss.fail())
-                return { v, true };
-            return { v, false };
+            return { v, ss.fail() };
         }
         template <>
         std::pair<bool, bool> valueAs(const std::string& value) { return { (value == "1" || value == "True" || value == "true" || value == "t" || value == "y"), false }; }
@@ -115,7 +124,7 @@ namespace BazPO
             for (auto it : values)
             {
                 auto val = valueAs<T>(it);
-                ret.push_back(val.first);
+                ret.emplace_back(val.first);
                 if (val.second)
                     return { ret, true };
             }
@@ -148,7 +157,7 @@ namespace BazPO
                 if (Parameter == "")
                     Parameter = std::to_string(po->getNextId());
 
-                po->add(*this);
+                po->option(*this);
             }
         }
     public:
@@ -194,7 +203,7 @@ namespace BazPO
         }
 
     protected:
-        void setValue(const char* value) { Value = value; Values.push_back(value); };
+        void setValue(const char* value) { Value = value; Values.emplace_back(value); };
         virtual void execute(const Option&) const { /* there is nothing to execute by default */ };
         size_t maxValueCount() const { return MaxValueCount; }
         void notMandatory() { Mandatory = false; }
@@ -252,13 +261,7 @@ namespace BazPO
             , constraints(stringConstraints)
         {}
 
-        virtual bool satisfied() const override
-        {
-            for (auto& constraint : constraints)
-                if (constraint == option.value())
-                    return true;
-            return false;
-        };
+        virtual bool satisfied() const override { return std::any_of(constraints.begin(), constraints.end(), [this](const std::string& constraint) { return constraint == option.value(); });};
         virtual std::string what() const override
         {
             std::string str;
@@ -299,17 +302,9 @@ namespace BazPO
         virtual bool satisfied() const override
         {
             T val = option.valueAs<T>();
-            if (val >= constraint.first && val <= constraint.second)
-                return true;
-            return false;
+            return val >= constraint.first && val <= constraint.second;
         };
-        virtual std::string what() const override
-        {
-            std::string str;
-            str.append("values to be between ");
-            str.append(std::to_string(constraint.first)).append(", ").append(std::to_string(constraint.second));
-            return str;
-        };
+        virtual std::string what() const override { return std::string("values to be between ").append(std::to_string(constraint.first)).append(", ").append(std::to_string(constraint.second)); };
 
     private:
         std::pair<T, T> constraint;
@@ -335,14 +330,14 @@ namespace BazPO
             std::deque<Option*> ret;
             for (auto& pair : relativeOptions)
                 if (pair.second)
-                    ret.push_back(pair.first);
+                    ret.emplace_back(pair.first);
             return ret;
         }
 
         virtual bool satisfied(Option& foundOption) = 0;
         virtual std::string what() = 0;
 
-        bool isMandatory(Option& option) const { return option.Mandatory; }
+        bool isMandatory(const Option& option) const { return option.Mandatory; }
         std::string parameterSyntax(const Option& option) const { return cli->parameterSyntax(option.Parameter, option.Mandatory); }
 
         std::deque<std::pair<Option*, bool>> relativeOptions;
@@ -392,7 +387,7 @@ namespace BazPO
         {
             std::string msg;
             msg.append("Only one of the ");
-            for (auto& option : relativeOptions)
+            for (const auto& option : relativeOptions)
             {
                 msg.append(parameterSyntax(*option.first));
                 if(option.first != relativeOptions.back().first)
@@ -403,13 +398,7 @@ namespace BazPO
         }
 
     private:
-        bool isAnyMandatory()
-        {
-            for (auto& option : relativeOptions)
-                if (isMandatory(*option.first))
-                    return true;
-            return false;
-        }
+        bool isAnyMandatory(){ return std::any_of(relativeOptions.begin(), relativeOptions.end(), [this](const auto& optionPair) { return isMandatory(*optionPair.first); });}
 
         Option* chosenOption = nullptr;
     };
@@ -418,9 +407,22 @@ namespace BazPO
         : public Option
     {
     public:
-        ValueOption(ICli* po, const std::string& parameter, const std::string& secondParameter = "", const std::string& description = "", const std::string& defaultValue = "", bool mandatory = false)
+        ValueOption(ICli* po, const std::string& parameter, const std::string& secondParameter = "", const std::string& description = "", const std::string& defaultValue = "", bool mandatory = false, size_t maxValueCount = SIZE_MAX)
             : Option(parameter, secondParameter, description, defaultValue, mandatory, _detail::OptionParseType::Value, po)
-        {};
+        {
+            withMaxValueCount(maxValueCount);
+        };
+    };
+
+    class FlagOption
+        : public Option
+    {
+    public:
+        FlagOption(ICli* po, const std::string& parameter, const std::string& description = "", const std::string& secondParameter = "", bool mandatory = false)
+            : Option(parameter, secondParameter, description, "", mandatory, _detail::OptionParseType::Value, po)
+        {
+            withMaxValueCount(0);
+        };
     };
 
     class MultiOption
@@ -461,8 +463,20 @@ namespace BazPO
         , protected _detail::FunctionExecutor
     {
     public:
-        FunctionOption(ICli* po, const std::string& parameter, const std::function<void(const Option&)>& onExists, const std::string& secondParameter = "", const std::string& description = "", const std::string& defaultValue = "", bool mandatory = false)
-            : ValueOption(po, parameter, secondParameter, description, defaultValue, mandatory)
+        FunctionOption(ICli* po, const std::string& parameter, const std::function<void(const Option&)>& onExists, const std::string& secondParameter = "", const std::string& description = "", const std::string& defaultValue = "", bool mandatory = false, size_t maxValueCount = SIZE_MAX)
+            : ValueOption(po, parameter, secondParameter, description, defaultValue, mandatory, maxValueCount)
+            , _detail::FunctionExecutor(onExists)
+        {}
+        virtual void execute(const Option& option) const override { f(option); }
+    };
+
+    class FunctionFlag
+        : public FlagOption
+        , protected _detail::FunctionExecutor
+    {
+    public:
+        FunctionFlag(ICli* po, const std::string& parameter, const std::function<void(const Option&)>& onExists, const std::string& description = "", const std::string& secondParameter = "", bool mandatory = false)
+            : FlagOption(po, parameter, description, secondParameter, mandatory)
             , _detail::FunctionExecutor(onExists)
         {}
         virtual void execute(const Option& option) const override { f(option); }
@@ -502,15 +516,17 @@ namespace BazPO
             , m_programDescription(programDescription)
         {
 #ifndef BazPO_DISABLE_AUTO_HELP_MESSAGE
-            add("-h", [this](const Option&) { exitWithCode(0); }, "--help", "Prints this help message").prioritize();
+            flag("-h", [this](const Option&) { exitWithCode(0); }, "Prints this help message", "--help").prioritize();
 #endif
         };
         // Implementation of ICli
-        virtual Option& add(const std::string& option, const std::string& secondOption = "", const std::string& description = "", const std::string& defaultValue = "", bool multipleOptions = false, size_t maxValueCount = 1) override;
-        virtual Option& add(const std::string& option, const std::function<void(const Option&)>& onExists, const std::string& secondOption = "", const std::string& description = "", const std::string& defaultValue = "", bool multipleOptions = false, size_t maxValueCount = 1) override;
-        virtual Option& add(size_t valueCount = 1, const std::string& description = "", const std::string& defaultValue = "") override;
-        virtual Option& add(const std::function<void(const Option&)>& onExists, size_t valueCount = 1, const std::string& description = "", const std::string& defaultValue = "") override;
-        virtual void add(Option& option) override;
+        virtual Option& option(const std::string& option, const std::string& secondOption = "", const std::string& description = "", const std::string& defaultValue = "", OptionType optionType = OptionType::Value, size_t maxValueCount = SIZE_MAX) override;
+        virtual Option& option(const std::string& option, const std::function<void(const Option&)>& onExists, const std::string& secondOption = "", const std::string& description = "", const std::string& defaultValue = "", OptionType optionType = OptionType::Value, size_t maxValueCount = SIZE_MAX) override;
+        virtual Option& flag(const std::string& option, const std::string& description = "", const std::string& secondOption = "") override;
+        virtual Option& flag(const std::string& option, const std::function<void(const Option&)>& onExists, const std::string& description = "", const std::string& secondOption = "") override;
+        virtual Option& tagless(size_t valueCount = 1, const std::string& description = "", const std::string& defaultValue = "") override;
+        virtual Option& tagless(const std::function<void(const Option&)>& onExists, size_t valueCount = 1, const std::string& description = "", const std::string& defaultValue = "") override;
+        virtual void option(Option& option) override;
         virtual Option& prioritize(const std::string& key) final
         {
             auto mainKey = getKey(key);
@@ -523,7 +539,7 @@ namespace BazPO
             return option;
         };
         virtual Option& mandatory(const std::string& key) final { return m_refMap.at(getKey(key)).mandatory(); }
-        inline const Option& option(const std::string& option) const { return m_refMap.at(getKey(option)); }
+        inline const Option& getOption(const std::string& option) const { return m_refMap.at(getKey(option)); }
         template <typename T>
         inline T valueAs(const std::string& option) const { return m_refMap.at(getKey(option)).valueAs<T>(); }
         inline bool exists(const std::string& option) const { return m_refMap.at(getKey(option)).Exists; }
@@ -536,7 +552,7 @@ namespace BazPO
         inline void userInputRequired() { m_askInputForMandatoryOptions = true; }
         inline void unexpectedArgumentsAcceptable() { m_exitOnUnexpectedValue = false; }
         template<typename... Options>
-        MutuallyExclusive& mutuallyExclusive(Options&... options) { m_multiConstraintStorage.push_back(std::make_shared<MutuallyExclusive>(this, m_refMap.at(getKey(options))...)); return reinterpret_cast<MutuallyExclusive&>(*m_multiConstraintStorage.back()); }
+        MutuallyExclusive& mutuallyExclusive(Options&... options) { m_multiConstraintStorage.emplace_back(std::make_shared<MutuallyExclusive>(this, m_refMap.at(getKey(options))...)); return reinterpret_cast<MutuallyExclusive&>(*m_multiConstraintStorage.back()); }
         Option& constraint(const std::string& key, std::deque<std::string> stringConstraints) { return m_refMap.at(getKey(key)).constrain(stringConstraints); };
         template<typename T>
         Option& constraint(const std::string& key, std::pair<T, T> minMaxConstraints) { return m_refMap.at(getKey(key)).constrain<T>(minMaxConstraints); };
@@ -586,59 +602,67 @@ namespace BazPO
         std::ostream* m_outputStream = &std::cout;
     };
 
-    Option& Cli::add(const std::string& option, const std::string& secondOption, const std::string& description, const std::string& defaultValue, bool multipleOptions, size_t maxValueCount)
+    Option& Cli::option(const std::string& option, const std::string& secondOption, const std::string& description, const std::string& defaultValue, OptionType optionType, size_t maxValueCount)
     {
         registerOptionSizes(option.size(), secondOption.size(), description.size());
-        if (multipleOptions)
-        {
-            if (maxValueCount == 1)
-                maxValueCount = SIZE_MAX;
-            m_optionStorage.push_back(std::make_shared<MultiOption>(nullptr, option, secondOption, description, defaultValue, false, maxValueCount));
-        }
+        if (optionType == OptionType::MultiValue)
+            m_optionStorage.emplace_back(std::make_shared<MultiOption>(nullptr, option, secondOption, description, defaultValue, false, maxValueCount));
         else
-            m_optionStorage.push_back(std::make_shared<ValueOption>(nullptr, option, secondOption, description, defaultValue, false));
+            m_optionStorage.emplace_back(std::make_shared<ValueOption>(nullptr, option, secondOption, description, defaultValue, false, maxValueCount));
 
         m_refMap.emplace(option, *m_optionStorage.back()).first->second.setCli(*this);
         registerAlias(option, secondOption);
         return *m_optionStorage.back();
     }
 
-    Option& Cli::add(const std::string& option, const std::function<void(const Option&)>& onExists, const std::string& secondOption, const std::string& description, const std::string& defaultValue, bool multipleOptions, size_t maxValueCount)
+    Option& Cli::option(const std::string& option, const std::function<void(const Option&)>& onExists, const std::string& secondOption, const std::string& description, const std::string& defaultValue, OptionType optionType, size_t maxValueCount)
     {
         registerOptionSizes(option.size(), secondOption.size(), description.size());
-        if (multipleOptions)
-        {
-            if (maxValueCount == 1)
-                maxValueCount = SIZE_MAX;
-            m_optionStorage.push_back(std::make_shared<FunctionMultiOption>(nullptr, option, onExists, secondOption, description, defaultValue, false, maxValueCount));
-        }
+        if (optionType == OptionType::MultiValue)
+            m_optionStorage.emplace_back(std::make_shared<FunctionMultiOption>(nullptr, option, onExists, secondOption, description, defaultValue, false, maxValueCount));
         else
-            m_optionStorage.push_back(std::make_shared<FunctionOption>(nullptr, option, onExists, secondOption, description, defaultValue, false));
+            m_optionStorage.emplace_back(std::make_shared<FunctionOption>(nullptr, option, onExists, secondOption, description, defaultValue, false, maxValueCount));
 
         m_refMap.emplace(option, *m_optionStorage.back()).first->second.setCli(*this);
         registerAlias(option, secondOption);
         return *m_optionStorage.back();
     }
 
-    Option& Cli::add(size_t valueCount, const std::string& description, const std::string& defaultValue)
+    Option& Cli::flag(const std::string& option, const std::string& description, const std::string& secondOption)
+    {
+        registerOptionSizes(option.size(), secondOption.size(), description.size());
+        m_optionStorage.emplace_back(std::make_shared<FlagOption>(nullptr, option, description, secondOption, false));
+        m_refMap.emplace(option, *m_optionStorage.back()).first->second.setCli(*this);
+        registerAlias(option, secondOption);
+        return *m_optionStorage.back();
+    }
+
+    Option& Cli::flag(const std::string& option, const std::function<void(const Option&)>& onExists, const std::string& description, const std::string& secondOption)
+    {
+        registerOptionSizes(option.size(), secondOption.size(), description.size());
+        m_optionStorage.emplace_back(std::make_shared<FunctionFlag>(nullptr, option, onExists, description, secondOption, false));
+        m_refMap.emplace(option, *m_optionStorage.back()).first->second.setCli(*this);
+        registerAlias(option, secondOption);
+        return *m_optionStorage.back();
+    }
+
+    Option& Cli::tagless(size_t valueCount, const std::string& description, const std::string& defaultValue)
     {
         registerOptionSizes(getNextId() % 10 + 1, 0, description.size());
-        m_optionStorage.push_back(std::make_shared<TaglessOption>(nullptr, valueCount, description, defaultValue, false));
-
+        m_optionStorage.emplace_back(std::make_shared<TaglessOption>(nullptr, valueCount, description, defaultValue, false));
         m_refMap.emplace(std::to_string(getCurrentId()), *m_optionStorage.back()).first->second.setCli(*this);
         return *m_optionStorage.back();
     }
 
-    Option& Cli::add(const std::function<void(const Option&)>& onExists, size_t valueCount, const std::string& description, const std::string& defaultValue)
+    Option& Cli::tagless(const std::function<void(const Option&)>& onExists, size_t valueCount, const std::string& description, const std::string& defaultValue)
     {
         registerOptionSizes(getNextId() % 10 + 1, 0, description.size());
-        m_optionStorage.push_back(std::make_shared<FunctionTaglessOption>(nullptr, onExists, valueCount, description, defaultValue, false));
-
+        m_optionStorage.emplace_back(std::make_shared<FunctionTaglessOption>(nullptr, onExists, valueCount, description, defaultValue, false));
         m_refMap.emplace(std::to_string(getCurrentId()), *m_optionStorage.back()).first->second.setCli(*this);
         return *m_optionStorage.back();
     }
 
-    void Cli::add(Option& option)
+    void Cli::option(Option& option)
     {
         registerOptionSizes(option.Parameter.size(), option.SecondParameter.size(), option.Description.size());
         m_refMap.emplace(option.Parameter, option);
@@ -712,7 +736,8 @@ namespace BazPO
             {
                 option->second.Exists = true;
                 ++option->second.ExistsCount;
-                lastOption = &option->second;
+                if(option->second.MaxValueCount > 0)
+                    lastOption = &option->second;
             }
             else if (lastOption != nullptr)
             {
@@ -731,7 +756,7 @@ namespace BazPO
                 if (option->second.ExistsCount == option->second.MaxValueCount)
                     ++taglessId;
             }
-            else if (taglessId > getCurrentId() && m_exitOnUnexpectedValue)
+            else if (m_exitOnUnexpectedValue && (taglessId > getCurrentId() || lastOption->MaxValueCount < lastOption->Values.size()))
                 unknownArgParsingError(m_argv[i]);
         }
     }
