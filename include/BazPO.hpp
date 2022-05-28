@@ -553,14 +553,13 @@ namespace BazPO
         void parsePriority();
         void parseOptions();
         void checkMandatoryOptions();
-        inline void checkOptionConstraints(Option& option);
         inline void crossCheckMultiConstraints();
+        inline void checkOptionConstraints(Option& option);
         inline void executeExistingOptions() const;
         inline void executePriorityOptions() const;
         inline std::string getKey(const std::string& option) const { return (m_aliasMap.find(option) != m_aliasMap.end()) ? m_aliasMap.at(option) : option; }
         void registerOptionSizes(size_t optionSize, size_t secondOptionSize, size_t descriptionSize);
         void registerAlias(const std::string& option, const std::string& secondOption);
-        void multiArgParseError(const std::string& key, const std::string& value);
         void unknownArgParsingError(const std::string& value);
         void constraintError(const std::string& constraints, const std::string& value, const std::string& parameter);
         void multiConstraintError(const std::string& message);
@@ -655,7 +654,6 @@ namespace BazPO
         if (!m_parsedPriority)
         {
             parseOptions();
-
             checkMandatoryOptions();
             crossCheckMultiConstraints();
             m_parsed = true;
@@ -720,8 +718,6 @@ namespace BazPO
             {
                 if (lastOption->MaxValueCount > lastOption->Values.size() || lastOption->ParseType == _detail::OptionParseType::Value)
                     lastOption->setValue(m_argv[i]);
-                else if (m_exitOnUnexpectedValue)
-                    multiArgParseError(lastOption->Parameter, m_argv[i]);
                 checkOptionConstraints(*lastOption);
                 if (lastOption->ParseType == _detail::OptionParseType::Value || lastOption->MaxValueCount == lastOption->Values.size())
                     lastOption = nullptr;
@@ -751,10 +747,18 @@ namespace BazPO
                 *m_outputStream << " is a required parameter" << std::endl;
                 if (m_askInputForMandatoryOptions)
                     askInput(pair.second);
-                else if (m_exitOnUnexpectedValue)
+                else if (m_exitOnUnexpectedValue && pair.second.MultiConstrained.empty())
                     exitWithCode(1);
             }
         }
+    }
+
+    inline void Cli::crossCheckMultiConstraints()
+    {
+        for (auto& it : m_refMap)
+            for (auto& constraint : it.second.MultiConstrained)
+                if (!constraint->satisfied(it.second))
+                    multiConstraintError(constraint->what());
     }
 
     inline void Cli::checkOptionConstraints(Option& option)
@@ -765,14 +769,6 @@ namespace BazPO
         for(const auto& multiConstraint : option.MultiConstrained)
             if(!multiConstraint->satisfied(option))
                 multiConstraintError(multiConstraint->what());
-    }
-
-    inline void Cli::crossCheckMultiConstraints()
-    {
-        for (auto& it : m_refMap)
-            for (auto& constraint : it.second.MultiConstrained)
-                if (!constraint->satisfied(it.second))
-                    multiConstraintError(constraint->what());
     }
 
     inline void Cli::executeExistingOptions() const
@@ -862,12 +858,6 @@ namespace BazPO
     void Cli::conversionError(const std::string& value, const std::string& parameter)
     {
         *m_outputStream << "Type of value '" << value << "' is not expected for option " << parameter;
-        exitWithCode(1);
-    }
-
-    void Cli::multiArgParseError(const std::string& key, const std::string& value)
-    {
-        *m_outputStream << "Expected only one value to argument '" << key << "'" << "where -> '" << value << "' is not expected";
         exitWithCode(1);
     }
 
