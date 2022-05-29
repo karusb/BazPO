@@ -5,6 +5,8 @@
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=karusb_BazPO&metric=coverage)](https://sonarcloud.io/summary/new_code?id=karusb_BazPO)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=karusb_BazPO&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=karusb_BazPO)
 
+![Logo](header-logo.png)
+
 BazPO is a flexible C++14 single header program argument parsing library. \
 \
 BazPO is very easy to use with multiple highly readable syntax that aims to keep your main function simple. \
@@ -12,7 +14,7 @@ Apart from other argument parsers BazPO does not enforce static type checking ra
 BazPO can simply be included as a header to the program without any linking.
 
 BEWARE! BazPO is still under development...
-**[Download BazPO Here](https://github.com/karusb/BazPO/archive/refs/tags/v0.2.0.zip)**\
+**[Download BazPO Here](https://github.com/karusb/BazPO/archive/refs/tags/v0.2.1.zip)**\
 *BazPO is licensed under MIT license, so it can be used as is without any restrictions. However, do not remove license and copyright information from the header.*
 
 ## **Contents**
@@ -73,7 +75,7 @@ BEWARE! BazPO is still under development...
 - Download BazPO.hpp source code and add to your project folder
 - Include the downloaded header to your main program
 - Library will be compiled along with your C++14 program
-- **[Download BazPO Here](https://github.com/karusb/BazPO/archive/refs/tags/v0.2.0.zip)**
+- **[Download BazPO Here](https://github.com/karusb/BazPO/archive/refs/tags/v0.2.1.zip)**
 
 ### Installing from Source with CMake
 
