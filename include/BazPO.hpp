@@ -756,8 +756,10 @@ namespace BazPO
     {
         for (auto& pair : m_refMap)
         {
+            if (!pair.second.MultiConstrained.empty() && std::all_of(pair.second.MultiConstrained.begin(), pair.second.MultiConstrained.end(), [&](MultiConstraint* constraint) { return constraint->satisfied(pair.second); }))
+                continue;
             if (pair.second.Mandatory && !pair.second.Exists)
-            {
+            {                        
                 printOption(pair.second);
                 printOptionUsage(pair.second);
                 *m_outputStream << " is a required parameter" << std::endl;

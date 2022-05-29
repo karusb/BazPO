@@ -999,6 +999,22 @@ TEST_F(ProgramOptionsTest, mutually_exclusive_exits_if_one_of_the_parameters_giv
     EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
 }
 
+TEST_F(ProgramOptionsTest, mutually_exclusive_does_not_exit_if_all_of_the_parameters_mandatory_but_one_is_given)
+{
+    int argc = 7;
+    const char* argv[7]{ {"programoptions"}, {"-a"}, {"Aoption"}, {"-a"}, {"Boption"}, {"-a"}, {"Coption"} };
+    Cli po{ argc, argv };
+    ValueOption optiona(&po, "-a", "--alpha", "Option A", "", true);
+    ValueOption optionb(&po, "-b", "--bravo", "Option B", "", true);
+    ValueOption optionc(&po, "-c", "--charlie", "Option C");
+
+    MutuallyExclusive exclusivity(&po, optiona, optionb);
+    po.parse();
+
+    ExpectOptionExistsWithValues(optiona, { "Aoption", "Boption", "Coption" });
+    EXPECT_FALSE(optionb.exists());
+}
+
 TEST_F(ProgramOptionsTest, mutually_exclusive_does_not_exit_when_user_input_empty_for_one_when_options_mandatory)
 {
     int argc = 1;
@@ -1088,7 +1104,7 @@ TEST_F(ProgramOptionsTest, mutually_exclusive_exits_when_user_input_for_both_wit
     po.userInputRequired();
     po.askInput(a);
 
-    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+    EXPECT_EXIT(po.askInput(b), testing::ExitedWithCode(1), "");
 }
 
 TEST_F(ProgramOptionsTest, constrained_string_values_value)
