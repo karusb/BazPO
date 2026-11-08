@@ -72,6 +72,16 @@ BEWARE! BazPO is still under development...
 
 ## **Getting Started**
 
+### Strict parsing for automation
+
+Call `cli.strictParsing()` before `parse()` to reject repeated scalar options,
+missing values and unknown option tags. Legacy parsing remains the default.
+Default values and program descriptions are owned by the parser. The header
+supports inclusion in multiple translation units without duplicate symbols.
+
+Embedding through CMake exports `BazPO::BazPO`; set `BAZPO_BUILD_TESTS=OFF` and
+`BAZPO_BUILD_EXAMPLES=OFF` when consuming the project as a dependency.
+
 - Download BazPO.hpp source code and add to your project folder
 - Include the downloaded header to your main program
 - Library will be compiled along with your C++14 program

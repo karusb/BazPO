@@ -2,7 +2,7 @@
 # project specific logic here.
 #
 cmake_minimum_required (VERSION 3.12)
-project(BazPO VERSION 0.2.0 DESCRIPTION "BazWare Program Options Argument Parser" HOMEPAGE_URL "https://github.com/karusb/BazPO")
+project(BazPO VERSION 0.3.0 DESCRIPTION "BazWare Program Options Argument Parser" HOMEPAGE_URL "https://github.com/karusb/BazPO" LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 # Specify BuildType if its not specified
@@ -13,6 +13,7 @@ endif()
 include(GNUInstallDirs)
 
 add_library(BazPO INTERFACE)
+add_library(BazPO::BazPO ALIAS BazPO)
 
 target_include_directories(
   BazPO
@@ -21,9 +22,19 @@ target_include_directories(
 
 target_compile_features(BazPO INTERFACE cxx_std_14)
 
-enable_testing()
-add_subdirectory(test)
-add_subdirectory(manualtest)
+set(BAZPO_TOP_LEVEL OFF)
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+  set(BAZPO_TOP_LEVEL ON)
+endif()
+option(BAZPO_BUILD_TESTS "Build BazPO regression tests" ${BAZPO_TOP_LEVEL})
+option(BAZPO_BUILD_EXAMPLES "Build BazPO manual example" ${BAZPO_TOP_LEVEL})
+if(BAZPO_BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(test)
+endif()
+if(BAZPO_BUILD_EXAMPLES)
+  add_subdirectory(manualtest)
+endif()
 
 install(TARGETS BazPO
         EXPORT BazPO_Targets
@@ -51,4 +62,5 @@ install(FILES "${PROJECT_BINARY_DIR}/BazPOConfig.cmake"
               "${PROJECT_BINARY_DIR}/BazPOConfigVersion.cmake"
         DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/BazPO/cmake)
 
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/include DESTINATION include)
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/ DESTINATION include)
+install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/BazPO)

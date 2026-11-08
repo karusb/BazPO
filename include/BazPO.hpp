@@ -37,6 +37,7 @@ SOFTWARE.
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
+#include <cstdint>
 
 namespace BazPO
 {
@@ -108,15 +109,15 @@ namespace BazPO
         std::pair<T, bool> valueAs(const std::string& value)
         {
             std::stringstream ss;
-            T v;
+            T v{};
             ss << value;
             ss >> v;
             return { v, ss.fail() };
         }
         template <>
-        std::pair<bool, bool> valueAs(const std::string& value) { return { (value == "1" || value == "True" || value == "true" || value == "t" || value == "y"), false }; }
+        inline std::pair<bool, bool> valueAs(const std::string& value) { return { (value == "1" || value == "True" || value == "true" || value == "t" || value == "y"), false }; }
         template <>
-        std::pair<std::string, bool> valueAs(const std::string& value) { return { value, false }; }
+        inline std::pair<std::string, bool> valueAs(const std::string& value) { return { value, false }; }
         template <typename T>
         std::pair<std::deque<T>, bool> valuesAs(const std::deque<const char*>& values)
         {
@@ -149,9 +150,10 @@ namespace BazPO
             , ParseType(parser)
             , Mandatory(mandatory)
             , po(po)
+            , DefaultStorage(defaultValue)
         {
             if (defaultValue != "")
-                Value = defaultValue.c_str();
+                Value = DefaultStorage.c_str();
             if (po != nullptr)
             {
                 if (Parameter == "")
@@ -228,6 +230,7 @@ namespace BazPO
         friend class Constraint;
         friend class MultiConstraint;
 
+        std::string DefaultStorage;
         const char* Value = "";
         std::deque<const char*> Values;
         size_t MaxValueCount = 1;
@@ -341,10 +344,10 @@ namespace BazPO
         friend class Cli;
     };
 
-    Option& Option::constrain(std::deque<std::string> stringConstraints) { ConstraintStorage.emplace_back(std::make_shared<StringConstraint>(*this, stringConstraints)); return *this; };
+    inline Option& Option::constrain(std::deque<std::string> stringConstraints) { ConstraintStorage.emplace_back(std::make_shared<StringConstraint>(*this, stringConstraints)); return *this; };
     template<typename T>
-    Option& Option::constrain(std::pair<T, T> minMaxConstraints) { ConstraintStorage.emplace_back(std::make_shared<MinMaxConstraint<T>>(*this, minMaxConstraints)); return *this; };
-    Option& Option::constrain(const std::function<bool(const Option&)>& isSatisfied, const std::string& errorMessage) { ConstraintStorage.emplace_back(std::make_shared<FunctionConstraint>(*this, isSatisfied, errorMessage)); return *this; };
+    inline Option& Option::constrain(std::pair<T, T> minMaxConstraints) { ConstraintStorage.emplace_back(std::make_shared<MinMaxConstraint<T>>(*this, minMaxConstraints)); return *this; };
+    inline Option& Option::constrain(const std::function<bool(const Option&)>& isSatisfied, const std::string& errorMessage) { ConstraintStorage.emplace_back(std::make_shared<FunctionConstraint>(*this, isSatisfied, errorMessage)); return *this; };
 
     class MutuallyExclusive
         : public MultiConstraint
@@ -534,7 +537,7 @@ namespace BazPO
         template <typename T>
         inline T valueAs(const std::string& option) const { return m_refMap.at(getKey(option)).valueAs<T>(); }
         inline bool exists(const std::string& option) const { return m_refMap.at(getKey(option)).Exists; }
-        inline bool existsCount(const std::string& option) const { return m_refMap.at(getKey(option)).ExistsCount; }
+        inline int existsCount(const std::string& option) const { return m_refMap.at(getKey(option)).ExistsCount; }
         void askInput(Option& option);
         inline void askInput(const std::string& key) { askInput(m_refMap.at(getKey(key))); }
         void printOptions();
@@ -542,6 +545,9 @@ namespace BazPO
         inline void changeIO(std::ostream* ostream, std::istream* istream = &std::cin) { m_inputStream = istream; m_outputStream = ostream; }
         inline void userInputRequired() { m_askInputForMandatoryOptions = true; }
         inline void unexpectedArgumentsAcceptable() { m_exitOnUnexpectedValue = false; }
+        // Reject missing values, repeated single-value options, and unknown option tags.
+        // Legacy parsing remains the default for existing applications.
+        inline void strictParsing() { m_strictParsing = true; }
         template<typename... Options>
         MutuallyExclusive& mutuallyExclusive(Options&... options) { m_multiConstraintStorage.emplace_back(std::make_shared<MutuallyExclusive>(this, m_refMap.at(getKey(options))...)); return reinterpret_cast<MutuallyExclusive&>(*m_multiConstraintStorage.back()); }
         Option& constraint(const std::string& key, std::deque<std::string> stringConstraints) { return m_refMap.at(getKey(key)).constrain(stringConstraints); };
@@ -576,7 +582,7 @@ namespace BazPO
         size_t m_maxDescriptionSize = 0;
         const int m_argc;
         const char** m_argv;
-        const char* m_programDescription;
+        const std::string m_programDescription;
 
         std::deque<std::shared_ptr<Option>> m_optionStorage;
         std::deque<std::shared_ptr<MultiConstraint>> m_multiConstraintStorage;
@@ -588,12 +594,13 @@ namespace BazPO
         bool m_parsedPriority = false;
         bool m_askInputForMandatoryOptions = false;
         bool m_exitOnUnexpectedValue = true;
+        bool m_strictParsing = false;
 
         std::istream* m_inputStream = &std::cin;
         std::ostream* m_outputStream = &std::cout;
     };
 
-    Option& Cli::option(const std::string& option, const std::string& secondOption, const std::string& description, const std::string& defaultValue, OptionType optionType, size_t maxValueCount)
+    inline Option& Cli::option(const std::string& option, const std::string& secondOption, const std::string& description, const std::string& defaultValue, OptionType optionType, size_t maxValueCount)
     {
         registerOptionSizes(option.size(), secondOption.size(), description.size());
         if (optionType == OptionType::MultiValue)
@@ -606,7 +613,7 @@ namespace BazPO
         return *m_optionStorage.back();
     }
 
-    Option& Cli::option(const std::string& option, const std::function<void(const Option&)>& onExists, const std::string& secondOption, const std::string& description, const std::string& defaultValue, OptionType optionType, size_t maxValueCount)
+    inline Option& Cli::option(const std::string& option, const std::function<void(const Option&)>& onExists, const std::string& secondOption, const std::string& description, const std::string& defaultValue, OptionType optionType, size_t maxValueCount)
     {
         registerOptionSizes(option.size(), secondOption.size(), description.size());
         if (optionType == OptionType::MultiValue)
@@ -619,7 +626,7 @@ namespace BazPO
         return *m_optionStorage.back();
     }
 
-    Option& Cli::flag(const std::string& option, const std::string& description, const std::string& secondOption)
+    inline Option& Cli::flag(const std::string& option, const std::string& description, const std::string& secondOption)
     {
         registerOptionSizes(option.size(), secondOption.size(), description.size());
         m_optionStorage.emplace_back(std::make_shared<FlagOption>(nullptr, option, description, secondOption, false));
@@ -628,7 +635,7 @@ namespace BazPO
         return *m_optionStorage.back();
     }
 
-    Option& Cli::flag(const std::string& option, const std::function<void(const Option&)>& onExists, const std::string& description, const std::string& secondOption)
+    inline Option& Cli::flag(const std::string& option, const std::function<void(const Option&)>& onExists, const std::string& description, const std::string& secondOption)
     {
         registerOptionSizes(option.size(), secondOption.size(), description.size());
         m_optionStorage.emplace_back(std::make_shared<FunctionFlag>(nullptr, option, onExists, description, secondOption, false));
@@ -637,7 +644,7 @@ namespace BazPO
         return *m_optionStorage.back();
     }
 
-    Option& Cli::tagless(size_t valueCount, const std::string& description, const std::string& defaultValue)
+    inline Option& Cli::tagless(size_t valueCount, const std::string& description, const std::string& defaultValue)
     {
         registerOptionSizes(getNextId() % 10 + 1, 0, description.size());
         m_optionStorage.emplace_back(std::make_shared<TaglessOption>(nullptr, valueCount, description, defaultValue, false));
@@ -645,7 +652,7 @@ namespace BazPO
         return *m_optionStorage.back();
     }
 
-    Option& Cli::tagless(const std::function<void(const Option&)>& onExists, size_t valueCount, const std::string& description, const std::string& defaultValue)
+    inline Option& Cli::tagless(const std::function<void(const Option&)>& onExists, size_t valueCount, const std::string& description, const std::string& defaultValue)
     {
         registerOptionSizes(getNextId() % 10 + 1, 0, description.size());
         m_optionStorage.emplace_back(std::make_shared<FunctionTaglessOption>(nullptr, onExists, valueCount, description, defaultValue, false));
@@ -653,14 +660,14 @@ namespace BazPO
         return *m_optionStorage.back();
     }
 
-    void Cli::option(Option& option)
+    inline void Cli::option(Option& option)
     {
         registerOptionSizes(option.Parameter.size(), option.SecondParameter.size(), option.Description.size());
         m_refMap.emplace(option.Parameter, option);
         registerAlias(option.Parameter, option.SecondParameter);
     }
 
-    void Cli::parse()
+    inline void Cli::parse()
     {
         if (m_parsed)
             return;
@@ -679,7 +686,7 @@ namespace BazPO
             executePriorityOptions();
 
     }
-    void Cli::parsePriority()
+    inline void Cli::parsePriority()
     {
         if (m_priorityMap.empty())
             return;
@@ -715,7 +722,7 @@ namespace BazPO
         }
     }
 
-    void Cli::parseOptions()
+    inline void Cli::parseOptions()
     {
         Option* lastOption = nullptr;
         int taglessId = 0;
@@ -723,13 +730,21 @@ namespace BazPO
         {
             auto key = getKey(m_argv[i]);
             auto option = m_refMap.find(key);
-            if (option != m_refMap.end())
+            if (option != m_refMap.end() && option->second.ParseType != _detail::OptionParseType::Unidentified)
             {
+                if (m_strictParsing && lastOption != nullptr && lastOption->Values.empty())
+                    unknownArgParsingError("Missing value for " + lastOption->Parameter);
+                if (m_strictParsing && option->second.Exists && option->second.ParseType == _detail::OptionParseType::Value)
+                    unknownArgParsingError("Repeated option " + key);
+                if (m_strictParsing && option->second.Exists && option->second.MaxValueCount == 0)
+                    unknownArgParsingError("Repeated flag " + key);
                 option->second.Exists = true;
                 ++option->second.ExistsCount;
-                if(option->second.MaxValueCount > 0)
-                    lastOption = &option->second;
+                if (m_strictParsing) lastOption = nullptr;
+                if (option->second.MaxValueCount > 0) lastOption = &option->second;
             }
+            else if (m_strictParsing && key.size() > 1 && key[0] == '-' && (key[1] < '0' || key[1] > '9'))
+                unknownArgParsingError(key);
             else if (lastOption != nullptr)
             {
                 if (lastOption->MaxValueCount > lastOption->Values.size() || lastOption->ParseType == _detail::OptionParseType::Value)
@@ -744,15 +759,15 @@ namespace BazPO
                 ++option->second.ExistsCount;
                 option->second.setValue(m_argv[i]);
                 checkOptionConstraints(option->second);
-                if (option->second.ExistsCount == option->second.MaxValueCount)
-                    ++taglessId;
+                if (option->second.ExistsCount == option->second.MaxValueCount) ++taglessId;
             }
-            else if (m_exitOnUnexpectedValue && (taglessId > getCurrentId() || (lastOption!= nullptr && (lastOption->MaxValueCount < lastOption->Values.size()))))
+            else if (m_exitOnUnexpectedValue && (m_strictParsing || taglessId > getCurrentId() || (lastOption != nullptr && lastOption->MaxValueCount < lastOption->Values.size())))
                 unknownArgParsingError(m_argv[i]);
         }
+        if (m_strictParsing && lastOption != nullptr && lastOption->Values.empty())
+            unknownArgParsingError("Missing value for " + lastOption->Parameter);
     }
-
-    void Cli::checkMandatoryOptions()
+    inline void Cli::checkMandatoryOptions()
     {
         for (auto& pair : m_refMap)
         {
@@ -822,7 +837,7 @@ namespace BazPO
             exitWithCode(1);
     }
 
-    void Cli::printOptions()
+    inline void Cli::printOptions()
     {
         std::string prgName(m_argv[0]);
         size_t prgNameStart = prgName.find_last_of("\\");
@@ -847,7 +862,7 @@ namespace BazPO
             printOption(pair.second);
     }
 
-    void Cli::registerOptionSizes(size_t optionSize, size_t secondOptionSize, size_t descriptionSize)
+    inline void Cli::registerOptionSizes(size_t optionSize, size_t secondOptionSize, size_t descriptionSize)
     {
         // Register largest parameter size to use for padding later on
         m_maxOptionParameterSize = optionSize > m_maxOptionParameterSize ? optionSize : m_maxOptionParameterSize;
@@ -855,37 +870,37 @@ namespace BazPO
         m_maxDescriptionSize = descriptionSize > m_maxDescriptionSize ? descriptionSize : m_maxDescriptionSize;
     }
 
-    void Cli::registerAlias(const std::string& option, const std::string& secondOption)
+    inline void Cli::registerAlias(const std::string& option, const std::string& secondOption)
     {
         if (secondOption != "")
             m_aliasMap.emplace(secondOption, option);
     }
 
-    void Cli::constraintError(const std::string& constraints, const std::string& value, const std::string& parameter)
+    inline void Cli::constraintError(const std::string& constraints, const std::string& value, const std::string& parameter)
     {
         *m_outputStream << "Expected " << constraints << " where -> '" << value << "' is not expected for option " << parameter;
         exitWithCode(1);
     }
 
-    void Cli::multiConstraintError(const std::string& message)
+    inline void Cli::multiConstraintError(const std::string& message)
     {
         *m_outputStream << message << std::endl;
         exitWithCode(1);
     }
 
-    void Cli::conversionError(const std::string& value, const std::string& parameter)
+    inline void Cli::conversionError(const std::string& value, const std::string& parameter)
     {
         *m_outputStream << "Type of value '" << value << "' is not expected for option " << parameter;
         exitWithCode(1);
     }
 
-    void Cli::unknownArgParsingError(const std::string& value)
+    inline void Cli::unknownArgParsingError(const std::string& value)
     {
         *m_outputStream << "Given value -> '" << value << "' is not expected";
         exitWithCode(1);
     }
 
-    void Cli::printOptionUsage(const Option& option)
+    inline void Cli::printOptionUsage(const Option& option)
     {
         if (option.ParseType == _detail::OptionParseType::Unidentified)
             if (option.Mandatory)
@@ -896,7 +911,7 @@ namespace BazPO
             *m_outputStream << parameterSyntax(option.Parameter, option.Mandatory);
     }
 
-    void Cli::printOption(const Option& option)
+    inline void Cli::printOption(const Option& option)
     {
         if (option.ParseType != _detail::OptionParseType::Unidentified)
             *m_outputStream << std::left << std::setw(m_maxOptionParameterSize + 9) << parameterSyntax(option.Parameter, option.Mandatory)
@@ -906,7 +921,7 @@ namespace BazPO
             << sizeSyntax(option.maxValueCount()) << std::endl;
     }
 
-    std::string Cli::sizeSyntax(size_t value) const
+    inline std::string Cli::sizeSyntax(size_t value) const
     {
         std::string str;
         if (value == 1)
@@ -918,7 +933,7 @@ namespace BazPO
         return str;
     }
 
-    std::string Cli::parameterSyntax(const std::string& value, bool mandatory) const
+    inline std::string Cli::parameterSyntax(const std::string& value, bool mandatory) const
     {
         std::string str;
         if (mandatory)
