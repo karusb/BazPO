@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 #include "../include/BazPO.hpp"
 #include <cmath>
+#include <cstdlib>
 
 using namespace BazPO;
 
@@ -207,17 +208,22 @@ TEST_F(ProgramOptionsTest, values_returns_correct_contents)
 {
     int argc = 7;
     const char* argv[7]{ {"programoptions"}, {"-a"}, {"Aoption"}, {"-a"}, {"Boption"}, {"-a"}, {"Coption"} };
-    Cli po{ argc, argv };
-    po.option("-a", "--alpha", "Option A").withMaxValueCount(3);
-    po.option("-b", "--bravo", "Option B");
-    po.option("-c", "--charlie", "Option C");
-    po.parse();
+    for (bool prioritized : {false, true})
+    {
+        SCOPED_TRACE(prioritized);
+        Cli po{ argc, argv };
+        auto& a = po.option("-a", "--alpha", "Option A").withMaxValueCount(3);
+        po.option("-b", "--bravo", "Option B");
+        po.option("-c", "--charlie", "Option C");
+        if (prioritized) a.prioritize();
+        po.parse();
 
-    auto& a = po.getOption("-a");
-
-    EXPECT_TRUE(a.exists());
-    std::deque<const char*> expected{ argv[2], argv[4], argv[6]};
-    EXPECT_EQ(expected, a.values());
+        EXPECT_TRUE(a.exists());
+        std::deque<const char*> expected{ argv[2], argv[4], argv[6]};
+        EXPECT_EQ(expected, a.values());
+        EXPECT_EQ(3, po.existsCount("-a"));
+        EXPECT_EQ(std::string("Coption"), a.value());
+    }
 }
 
 TEST_F(ProgramOptionsTest, values_returns_correct_string_contents)
@@ -464,31 +470,36 @@ TEST_F(ProgramOptionsTest, multi_options_unsuccessful_with_limited_count)
 
 TEST_F(ProgramOptionsTest, multi_options_successful_with_limited_count)
 {
-    int argc = 6;
-    const char* argv[6]{ {"programoptions"}, {"-a"}, {"value1"}, {"value2"}, {"value3"}, {"value4"} };
+    int argc = 11;
+    const char* argv[11]{ "programoptions", "-a", "value1", "value2", "value3", "extra",
+                         "-a", "value4", "value5", "value6", "extra" };
     Cli po{ argc, argv };
     po.option("-a", "--echo", "", "", OptionType::MultiValue, 3);
 
     po.unexpectedArgumentsAcceptable();
     po.parse();
 
-    ExpectOptionExistsWithValues(po, "-a", { "value1", "value2", "value3" });
+    ExpectOptionExistsWithValues(po, "-a", { "value1", "value2", "value3", "value4", "value5", "value6" });
 }
 
 TEST_F(ProgramOptionsTest, multi_options_with_multi_tags_successful)
 {
     int argc = 6;
     const char* argv[6]{ {"programoptions"}, {"-a"}, {"value1"}, {"value2"}, {"-a"}, {"value4"} };
-    Cli po{ argc, argv };
-    po.option("-a", "--echo", "", "", OptionType::MultiValue);
-    po.option("-b", "--bravo");
-    po.option("-c", "--charlie");
-    po.parse();
+    for (bool prioritized : {false, true})
+    {
+        SCOPED_TRACE(prioritized);
+        Cli po{ argc, argv };
+        auto& a = po.option("-a", "--echo", "", "", OptionType::MultiValue).withMaxValueCount(2);
+        po.option("-b", "--bravo");
+        po.option("-c", "--charlie");
+        if (prioritized) a.prioritize();
+        po.parse();
 
-    EXPECT_FALSE(po.getOption("-b").exists());
-    EXPECT_FALSE(po.getOption("-c").exists());
-
-    ExpectOptionExistsWithValues(po, "-a", { "value1", "value2", "value4" });
+        EXPECT_FALSE(po.getOption("-b").exists());
+        EXPECT_FALSE(po.getOption("-c").exists());
+        ExpectOptionExistsWithValues(po, "-a", { "value1", "value2", "value4" });
+    }
 }
 
 TEST_F(ProgramOptionsTest, multi_options_with_unknown_tags_successful)
@@ -729,27 +740,28 @@ TEST_F(ProgramOptionsTest, function_multi_options_successful)
     int argc = 6;
     const char* argv[6]{ {"programoptions"}, {"-a"}, {"value1"}, {"value2"}, {"-a"}, {"value4"} };
     {
-        bool executed = false;
+        int executions = 0;
         Cli po{ argc, argv };
         po.option("-a", [&](const Option& option) {
             ExpectOptionExistsWithValues(option, { "value1", "value2", "value4" });
-            executed = true;
-            }, "", "", "", OptionType::MultiValue);
+            ++executions;
+            }, "", "", "", OptionType::MultiValue).withMaxValueCount(2);
 
         po.parse();
-        EXPECT_TRUE(executed);
+        EXPECT_EQ(1, executions);
         ExpectOptionExistsWithValues(po, "-a", { "value1", "value2", "value4" });
     }
     {
-        bool executed = false;
+        int executions = 0;
         Cli po(argc, argv);
         FunctionMultiOption option(&po, "-a", [&](const Option& option) {
             ExpectOptionExistsWithValues(option, { "value1", "value2", "value4" });
-            executed = true;
+            ++executions;
             }, "--alpha", "Option A");
+        option.withMaxValueCount(2);
 
         po.parse();
-        EXPECT_TRUE(executed);
+        EXPECT_EQ(1, executions);
         ExpectOptionExistsWithValues(option, { "value1", "value2", "value4" });
     }
 }
@@ -1381,4 +1393,164 @@ TEST_F(ProgramOptionsTest, tagless_options_print)
     po.tagless(3, "Third set of values");
     po.tagless(4, "Fourth set of values").withMaxValueCount(SIZE_MAX);
     po.printOptions();
+}
+
+TEST_F(ProgramOptionsTest, value_option_exits_when_occurrence_limit_exceeded)
+{
+    const char* argv[] = { "programoptions", "-a", "one", "-a", "two", "-a", "three" };
+    for (bool prioritized : {false, true})
+    {
+        SCOPED_TRACE(prioritized);
+        Cli po(7, argv);
+        auto& a = po.option("-a").withMaxValueCount(2);
+        if (prioritized) a.prioritize();
+        EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+    }
+}
+
+TEST_F(ProgramOptionsTest, value_option_aliases_share_limit_before_callback)
+{
+    const char* argv[] = { "programoptions", "-a", "one", "--alpha", "two" };
+    for (bool prioritized : {false, true})
+    {
+        SCOPED_TRACE(prioritized);
+        Cli po(5, argv);
+        auto& a = po.option("-a", [](const Option&) { std::exit(2); }, "--alpha").withMaxValueCount(1);
+        if (prioritized) a.prioritize();
+        EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+    }
+}
+
+TEST_F(ProgramOptionsTest, value_option_empty_occurrences_count_toward_limit)
+{
+    const char* argv[] = { "programoptions", "-a", "-a" };
+    for (bool prioritized : {false, true})
+    {
+        SCOPED_TRACE(prioritized);
+        Cli po(3, argv);
+        auto& a = po.option("-a").withMaxValueCount(1);
+        if (prioritized) a.prioritize();
+        EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+    }
+}
+
+TEST_F(ProgramOptionsTest, multi_option_partial_group_resets_on_alias)
+{
+    const char* argv[] = { "programoptions", "-a", "one", "--alpha", "two", "three" };
+    for (bool prioritized : {false, true})
+    {
+        SCOPED_TRACE(prioritized);
+        Cli po(6, argv);
+        auto& a = po.option("-a", "--alpha", "", "", OptionType::MultiValue).withMaxValueCount(2);
+        if (prioritized) a.prioritize();
+        po.parse();
+        ExpectOptionExistsWithValues(a, { "one", "two", "three" });
+    }
+}
+
+TEST_F(ProgramOptionsTest, multi_option_group_resets_after_other_option)
+{
+    const char* argv[] = { "programoptions", "-a", "one", "two", "-b", "separate", "-a", "three", "four" };
+    Cli po(9, argv);
+    auto& a = po.option("-a", "", "", "", OptionType::MultiValue).withMaxValueCount(2);
+    po.option("-b");
+    po.parse();
+    ExpectOptionExistsWithValues(a, { "one", "two", "three", "four" });
+    ExpectOptionExistsWithValue(po, "-b", "separate");
+}
+
+TEST_F(ProgramOptionsTest, multi_option_exits_when_second_group_exceeds_limit)
+{
+    const char* argv[] = { "programoptions", "-a", "one", "two", "-a", "three", "four", "extra" };
+    Cli po(8, argv);
+    po.option("-a", "", "", "", OptionType::MultiValue).withMaxValueCount(2);
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+}
+
+TEST_F(ProgramOptionsTest, multi_option_limit_leaves_following_positional_value)
+{
+    const char* argv[] = { "programoptions", "-a", "one", "two", "positional", "-a", "three", "four" };
+    Cli po(8, argv);
+    auto& positional = po.tagless();
+    auto& a = po.option("-a", "", "", "", OptionType::MultiValue).withMaxValueCount(2);
+    po.parse();
+    ExpectOptionExistsWithValue(positional, "positional");
+    ExpectOptionExistsWithValues(a, { "one", "two", "three", "four" });
+}
+
+TEST_F(ProgramOptionsTest, repeated_flags_count_all_aliases)
+{
+    const char* argv[] = { "programoptions", "-v", "--verbose", "-v" };
+    Cli po(4, argv);
+    po.flag("-v", "", "--verbose");
+    po.parse();
+    EXPECT_EQ(3, po.existsCount("-v"));
+}
+
+TEST_F(ProgramOptionsTest, flag_terminates_previous_value_group)
+{
+    const char* argv[] = { "programoptions", "--file", "--enabled", "unexpected" };
+    Cli po(4, argv);
+    po.option("--file");
+    po.flag("--enabled");
+    EXPECT_EXIT(po.parse(), testing::ExitedWithCode(1), "");
+}
+
+TEST_F(ProgramOptionsTest, negative_fraction_converts_successfully)
+{
+    const char* argv[] = { "programoptions", "-a", "-.5" };
+    for (bool prioritized : {false, true})
+    {
+        SCOPED_TRACE(prioritized);
+        Cli po(3, argv);
+        auto& a = po.option("-a").withMaxValueCount(1);
+        if (prioritized) a.prioritize();
+        po.parse();
+        EXPECT_DOUBLE_EQ(-0.5, a.valueAs<double>());
+    }
+}
+
+TEST_F(ProgramOptionsTest, default_value_owned_after_caller_mutation)
+{
+    const char* argv[] = { "programoptions", "-a" };
+    for (bool provided : {false, true})
+    {
+        SCOPED_TRACE(provided);
+        Cli po(provided ? 2 : 1, argv);
+        std::string defaultValue(4096, 'a');
+        auto& a = po.option("-a", "", "", defaultValue);
+        defaultValue.assign(8192, 'b');
+        po.parse();
+        EXPECT_EQ(provided, a.exists());
+        EXPECT_EQ(std::string(4096, 'a'), a.value());
+    }
+}
+
+TEST_F(ProgramOptionsTest, program_description_owned_after_caller_mutation)
+{
+    const char* argv[] = { "programoptions" };
+    std::string description(4096, 'a');
+    Cli po(1, argv, description.c_str());
+    description.assign(8192, 'b');
+    std::ostringstream output;
+    po.changeIO(&output);
+    po.printOptions();
+    EXPECT_NE(std::string::npos, output.str().find(std::string(4096, 'a')));
+}
+
+TEST_F(ProgramOptionsTest, numeric_option_value_does_not_alias_positional_id)
+{
+    const char* argv[] = { "programoptions", "apply", "--pid", "0" };
+    for (bool prioritized : {false, true})
+    {
+        SCOPED_TRACE(prioritized);
+        Cli po(4, argv);
+        auto& command = po.tagless();
+        auto& pid = po.option("--pid");
+        if (prioritized) pid.prioritize();
+        po.parse();
+        EXPECT_EQ(0, pid.valueAs<int>());
+        EXPECT_EQ(1u, pid.values().size());
+        if (!prioritized) ExpectOptionExistsWithValue(command, "apply");
+    }
 }

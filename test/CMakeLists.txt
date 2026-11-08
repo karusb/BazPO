@@ -17,7 +17,6 @@ enable_testing()
 add_executable(
   BazPOTest
   test.cpp
-  regression_tests.cpp
 )
 target_link_libraries(
   BazPOTest

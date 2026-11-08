@@ -72,28 +72,6 @@ BEWARE! BazPO is still under development...
 
 ## **Getting Started**
 
-### Value limits
-
-Use `withMaxValueCount(n)` to limit an option without changing the parser's syntax:
-
-| Option type | Meaning of `n` | Example with `n = 2` |
-| --- | --- | --- |
-| `ValueOption` | Maximum number of tag occurrences, including aliases and occurrences without a value | `-a one -a two` |
-| `MultiOption` | Maximum number of consecutive values after each tag occurrence | `-a one two -a three four` |
-| `TaglessOption` | Maximum number of positional values assigned to the option | `one two` |
-
-Tagged value options default to an unlimited count. `values()` retains all explicit
-values in order; `value()` returns the last value or the configured default when
-no explicit value was provided. A value limit does not require a value. Flags
-accept no values and remain repeatable. Repeating a `ValueOption` beyond its
-limit is a parsing error; priority options use the same limits.
-
-Default values and program descriptions are owned by the parser. The header
-supports inclusion in multiple translation units without duplicate symbols.
-
-Embedding through CMake exports `BazPO::BazPO`; set `BAZPO_BUILD_TESTS=OFF` and
-`BAZPO_BUILD_EXAMPLES=OFF` when consuming the project as a dependency.
-
 - Download BazPO.hpp source code and add to your project folder
 - Include the downloaded header to your main program
 - Library will be compiled along with your C++14 program
@@ -126,6 +104,9 @@ target_link_libraries(example PUBLIC BazPO::BazPO)
 ```
 
 **Embedding BazPO to your project via CMakeLists.txt**
+
+Embedding exports `BazPO::BazPO`. Set `BAZPO_BUILD_TESTS=OFF` and
+`BAZPO_BUILD_EXAMPLES=OFF` when consuming BazPO as a dependency.
 
 - Add the following commands to your CMakeLists.txt
 
@@ -292,7 +273,7 @@ BOOL:1
 - Option
   - Before Parsing
     - **mandatory()** -> sets the option as mandatory input
-    - **withMaxValueCount(size_t)** -> limits tag occurrences for ValueOption, values per tag occurrence for MultiOption, or positional values for TaglessOption; see [Value limits](#value-limits)
+    - **withMaxValueCount(size_t)** -> sets the count limit described under each option type below
     - **prioritize()** -> see [`Option prioritizing`](#option-prioritizing-like--h) section.
     - **constrain({"str1", "str2"})** / **constrain<T>(T min, T max)** / **constrain(bool(Option&) isSatisfied, string errorMessage)** -> constrains the option, see [`Constraints`](#constraints) section.
   - After Parsing
@@ -306,6 +287,7 @@ BOOL:1
 ### ValueOption
 
 - Basic argument with/without a value or values provided with multiple tags.
+- `withMaxValueCount(n)` limits tag occurrences, including aliases and occurrences without a value; exceeding the limit is a parsing error. The default is unlimited, including for priority options.
 
 Below argument list is valid and only one value is accepted after the tag.
 
@@ -332,6 +314,7 @@ myprogram -a value1 -a value2
 ### FlagOption
 
 - Basic flag that can have no value.
+- Flags remain repeatable; `existsCount()` returns the number of occurrences.
 
 Below argument list is valid and no value is accepted after the tag.
 
@@ -387,6 +370,7 @@ myprogram -a value1 value2 value3 -a value4
 
 - Use this option if the program will only use positional arguments.
 - Given number of arguments are separated into different options or all into one.
+- `withMaxValueCount(n)` limits the positional values assigned to this option.
 - Provided values will be added to your options in the order you add them.
 - Other options cannot be used in conjunction with this option.
 
