@@ -179,6 +179,7 @@ namespace BazPO
             po->prioritize(Parameter);
             return *this;
         }
+        // Value: maximum tag occurrences. MultiValue: maximum values per tag occurrence.
         Option& withMaxValueCount(size_t count) { MaxValueCount = count; return *this; }
         Option& mandatory() { Mandatory = true; return *this; }
         Option& constrain(std::deque<std::string> stringConstraints);
@@ -346,7 +347,7 @@ namespace BazPO
 
     inline Option& Option::constrain(std::deque<std::string> stringConstraints) { ConstraintStorage.emplace_back(std::make_shared<StringConstraint>(*this, stringConstraints)); return *this; };
     template<typename T>
-    inline Option& Option::constrain(std::pair<T, T> minMaxConstraints) { ConstraintStorage.emplace_back(std::make_shared<MinMaxConstraint<T>>(*this, minMaxConstraints)); return *this; };
+    Option& Option::constrain(std::pair<T, T> minMaxConstraints) { ConstraintStorage.emplace_back(std::make_shared<MinMaxConstraint<T>>(*this, minMaxConstraints)); return *this; };
     inline Option& Option::constrain(const std::function<bool(const Option&)>& isSatisfied, const std::string& errorMessage) { ConstraintStorage.emplace_back(std::make_shared<FunctionConstraint>(*this, isSatisfied, errorMessage)); return *this; };
 
     class MutuallyExclusive
@@ -545,9 +546,6 @@ namespace BazPO
         inline void changeIO(std::ostream* ostream, std::istream* istream = &std::cin) { m_inputStream = istream; m_outputStream = ostream; }
         inline void userInputRequired() { m_askInputForMandatoryOptions = true; }
         inline void unexpectedArgumentsAcceptable() { m_exitOnUnexpectedValue = false; }
-        // Reject missing values, repeated single-value options, and unknown option tags.
-        // Legacy parsing remains the default for existing applications.
-        inline void strictParsing() { m_strictParsing = true; }
         template<typename... Options>
         MutuallyExclusive& mutuallyExclusive(Options&... options) { m_multiConstraintStorage.emplace_back(std::make_shared<MutuallyExclusive>(this, m_refMap.at(getKey(options))...)); return reinterpret_cast<MutuallyExclusive&>(*m_multiConstraintStorage.back()); }
         Option& constraint(const std::string& key, std::deque<std::string> stringConstraints) { return m_refMap.at(getKey(key)).constrain(stringConstraints); };
@@ -594,7 +592,6 @@ namespace BazPO
         bool m_parsedPriority = false;
         bool m_askInputForMandatoryOptions = false;
         bool m_exitOnUnexpectedValue = true;
-        bool m_strictParsing = false;
 
         std::istream* m_inputStream = &std::cin;
         std::ostream* m_outputStream = &std::cout;
@@ -691,12 +688,16 @@ namespace BazPO
         if (m_priorityMap.empty())
             return;
         Option* lastOption = nullptr;
+        size_t valueStart = 0;
         for (int i = 1; i < m_argc; ++i)
         {
             auto key = getKey(m_argv[i]);
             auto option = m_priorityMap.find(key);
             if (option != m_priorityMap.end())
             {
+                if (option->second.ParseType == _detail::OptionParseType::Value && option->second.MaxValueCount > 0 &&
+                    static_cast<size_t>(option->second.ExistsCount) >= option->second.MaxValueCount)
+                    unknownArgParsingError("Too many occurrences of " + key);
                 m_parsedPriority = true;
                 option->second.Exists = true;
                 ++option->second.ExistsCount;
@@ -704,12 +705,14 @@ namespace BazPO
                 if (option->second.maxValueCount() == 0)
                     break;
                 lastOption = &option->second;
+                valueStart = lastOption->Values.size();
             }
             else if (lastOption != nullptr)
             {
-                if (m_refMap.find(key) == m_refMap.end())
+                auto normalOption = m_refMap.find(key);
+                if (normalOption == m_refMap.end() || normalOption->second.ParseType == _detail::OptionParseType::Unidentified)
                 {
-                    if (lastOption->maxValueCount() > lastOption->values().size() || lastOption->ParseType == _detail::OptionParseType::Value)
+                    if (lastOption->maxValueCount() > lastOption->values().size() - valueStart || lastOption->ParseType == _detail::OptionParseType::Value)
                         lastOption->setValue(m_argv[i]);
                     else
                         break;
@@ -725,6 +728,7 @@ namespace BazPO
     inline void Cli::parseOptions()
     {
         Option* lastOption = nullptr;
+        size_t valueStart = 0;
         int taglessId = 0;
         for (int i = 1; i < m_argc; ++i)
         {
@@ -732,25 +736,20 @@ namespace BazPO
             auto option = m_refMap.find(key);
             if (option != m_refMap.end() && option->second.ParseType != _detail::OptionParseType::Unidentified)
             {
-                if (m_strictParsing && lastOption != nullptr && lastOption->Values.empty())
-                    unknownArgParsingError("Missing value for " + lastOption->Parameter);
-                if (m_strictParsing && option->second.Exists && option->second.ParseType == _detail::OptionParseType::Value)
-                    unknownArgParsingError("Repeated option " + key);
-                if (m_strictParsing && option->second.Exists && option->second.MaxValueCount == 0)
-                    unknownArgParsingError("Repeated flag " + key);
+                if (option->second.ParseType == _detail::OptionParseType::Value && option->second.MaxValueCount > 0 &&
+                    static_cast<size_t>(option->second.ExistsCount) >= option->second.MaxValueCount)
+                    unknownArgParsingError("Too many occurrences of " + key);
                 option->second.Exists = true;
                 ++option->second.ExistsCount;
-                if (m_strictParsing) lastOption = nullptr;
-                if (option->second.MaxValueCount > 0) lastOption = &option->second;
+                lastOption = option->second.MaxValueCount > 0 ? &option->second : nullptr;
+                valueStart = option->second.Values.size();
             }
-            else if (m_strictParsing && key.size() > 1 && key[0] == '-' && (key[1] < '0' || key[1] > '9'))
-                unknownArgParsingError(key);
             else if (lastOption != nullptr)
             {
-                if (lastOption->MaxValueCount > lastOption->Values.size() || lastOption->ParseType == _detail::OptionParseType::Value)
+                if (lastOption->MaxValueCount > lastOption->Values.size() - valueStart || lastOption->ParseType == _detail::OptionParseType::Value)
                     lastOption->setValue(m_argv[i]);
                 checkOptionConstraints(*lastOption);
-                if (lastOption->ParseType == _detail::OptionParseType::Value || lastOption->MaxValueCount == lastOption->Values.size())
+                if (lastOption->ParseType == _detail::OptionParseType::Value || lastOption->MaxValueCount == lastOption->Values.size() - valueStart)
                     lastOption = nullptr;
             }
             else if ((option = m_refMap.find(std::to_string(taglessId))) != m_refMap.end() && option->second.ParseType == _detail::OptionParseType::Unidentified)
@@ -761,11 +760,9 @@ namespace BazPO
                 checkOptionConstraints(option->second);
                 if (option->second.ExistsCount == option->second.MaxValueCount) ++taglessId;
             }
-            else if (m_exitOnUnexpectedValue && (m_strictParsing || taglessId > getCurrentId() || (lastOption != nullptr && lastOption->MaxValueCount < lastOption->Values.size())))
+            else if (m_exitOnUnexpectedValue && (taglessId > getCurrentId() || (lastOption != nullptr && lastOption->MaxValueCount < lastOption->Values.size())))
                 unknownArgParsingError(m_argv[i]);
         }
-        if (m_strictParsing && lastOption != nullptr && lastOption->Values.empty())
-            unknownArgParsingError("Missing value for " + lastOption->Parameter);
     }
     inline void Cli::checkMandatoryOptions()
     {

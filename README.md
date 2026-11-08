@@ -72,10 +72,22 @@ BEWARE! BazPO is still under development...
 
 ## **Getting Started**
 
-### Strict parsing for automation
+### Value limits
 
-Call `cli.strictParsing()` before `parse()` to reject repeated scalar options,
-missing values and unknown option tags. Legacy parsing remains the default.
+Use `withMaxValueCount(n)` to limit an option without changing the parser's syntax:
+
+| Option type | Meaning of `n` | Example with `n = 2` |
+| --- | --- | --- |
+| `ValueOption` | Maximum number of tag occurrences, including aliases and occurrences without a value | `-a one -a two` |
+| `MultiOption` | Maximum number of consecutive values after each tag occurrence | `-a one two -a three four` |
+| `TaglessOption` | Maximum number of positional values assigned to the option | `one two` |
+
+Tagged value options default to an unlimited count. `values()` retains all explicit
+values in order; `value()` returns the last value or the configured default when
+no explicit value was provided. A value limit does not require a value. Flags
+accept no values and remain repeatable. Repeating a `ValueOption` beyond its
+limit is a parsing error; priority options use the same limits.
+
 Default values and program descriptions are owned by the parser. The header
 supports inclusion in multiple translation units without duplicate symbols.
 
@@ -280,7 +292,7 @@ BOOL:1
 - Option
   - Before Parsing
     - **mandatory()** -> sets the option as mandatory input
-    - **withMaxValueCount(size_t)** -> sets a maximum number of accepted values
+    - **withMaxValueCount(size_t)** -> limits tag occurrences for ValueOption, values per tag occurrence for MultiOption, or positional values for TaglessOption; see [Value limits](#value-limits)
     - **prioritize()** -> see [`Option prioritizing`](#option-prioritizing-like--h) section.
     - **constrain({"str1", "str2"})** / **constrain<T>(T min, T max)** / **constrain(bool(Option&) isSatisfied, string errorMessage)** -> constrains the option, see [`Constraints`](#constraints) section.
   - After Parsing
@@ -347,7 +359,7 @@ myprogram -a
 
 - Use this option if one tag needs multiple inputs after the tag is provided.
 - All arguments provided after the tag will be considered values until a valid tag.
-- Max value count can be provided to limit the number of values that can be provided.
+- Max value count limits the consecutive values after each tag. Repeating the tag starts a new group; `values()` retains all groups in order.
 
 Below argument list is valid for MultiOption only.
 
